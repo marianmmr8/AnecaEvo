@@ -1,0 +1,24 @@
+# ============================================================================
+# ARCHIVO .gitignore - ANECA EVO
+# Evita subir a GitHub/Git archivos con claves privadas, dependencias o builds
+# ============================================================================
+
+# 1. Variables de entorno y claves secretas (DB_PASSWORD, JWT_SECRET, STRIPE_SECRET_KEY)
+.env
+.env.*
+!.env.example
+
+# 2. Dependencias instaladas por npm (se regeneran con `npm install`)
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# 3. Compilación de producción del frontend (se regenera con `npm run build`)
+frontend/dist/
+dist/
+
+# 4. Logs y archivos temporales del sistema / editores
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
