@@ -35,6 +35,12 @@ export default function InventarioAdmin() {
   const [archivoFotoServ, setArchivoFotoServ] = useState(null);
   const [previewFotoServ, setPreviewFotoServ] = useState('');
 
+  // Estados para actualización masiva de precios (% o €)
+  const [masaTabla, setMasaTabla] = useState('productos');
+  const [masaCategoria, setMasaCategoria] = useState('todas');
+  const [masaTipo, setMasaTipo] = useState('porcentaje');
+  const [masaValor, setMasaValor] = useState('10');
+
   useEffect(() => {
     cargar();
   }, []);
@@ -240,6 +246,85 @@ export default function InventarioAdmin() {
     <div>
       {error && <div className="alerta-error">{error}</div>}
       {mensaje && <div className="alerta-exito">{mensaje}</div>}
+
+      {/* Bloque de actualización masiva de precios */}
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const signo = Number(masaValor) > 0 ? `+${masaValor}` : masaValor;
+          const unidad = masaTipo === 'porcentaje' ? '%' : '€';
+          if (!window.confirm(`¿Aplicar ${signo}${unidad} a ${masaTabla} (${masaCategoria})?`)) return;
+          setError('');
+          setMensaje('');
+          try {
+            const res = await apiFetch('/productos/ajuste-precios', {
+              method: 'POST',
+              body: JSON.stringify({
+                tabla: masaTabla,
+                categoria: masaCategoria,
+                tipo: masaTipo,
+                valor: Number(masaValor)
+              })
+            });
+            setMensaje(res.mensaje);
+            cargar();
+          } catch (err) {
+            setError(err.message);
+          }
+        }}
+        className="tarjeta"
+        style={{ padding: '1.25rem', marginBottom: '2rem', background: '#fdf8f2' }}
+      >
+        <h3 style={{ fontSize: '1.3rem', marginBottom: '0.75rem' }}>Actualización masiva de precios (% o €)</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
+          <div className="campo" style={{ marginBottom: 0 }}>
+            <label>Aplicar a</label>
+            <select
+              value={masaTabla}
+              onChange={(e) => {
+                setMasaTabla(e.target.value);
+                setMasaCategoria('todas');
+              }}
+            >
+              <option value="productos">Productos de Tienda</option>
+              <option value="servicios">Servicios / Terapias</option>
+            </select>
+          </div>
+          <div className="campo" style={{ marginBottom: 0 }}>
+            <label>Categoría</label>
+            <select value={masaCategoria} onChange={(e) => setMasaCategoria(e.target.value)}>
+              <option value="todas">Todas</option>
+              {masaTabla === 'productos' ? (
+                <>
+                  <option value="aceites">Aceites</option>
+                  <option value="cremas">Cremas</option>
+                  <option value="infusiones">Infusiones</option>
+                  <option value="especias">Especias</option>
+                  <option value="libros">Libros</option>
+                </>
+              ) : (
+                <>
+                  <option value="masajes">Masajes</option>
+                  <option value="terapias_energeticas">Terapias Energéticas</option>
+                  <option value="crecimiento_alma">Crecimiento y Alma</option>
+                </>
+              )}
+            </select>
+          </div>
+          <div className="campo" style={{ marginBottom: 0 }}>
+            <label>Tipo</label>
+            <select value={masaTipo} onChange={(e) => setMasaTipo(e.target.value)}>
+              <option value="porcentaje">Porcentaje (%)</option>
+              <option value="euros">Importe fijo (€)</option>
+            </select>
+          </div>
+          <div className="campo" style={{ marginBottom: 0 }}>
+            <label>Valor (ej: 10 o -5)</label>
+            <input type="number" step="0.01" required value={masaValor} onChange={(e) => setMasaValor(e.target.value)} />
+          </div>
+          <button type="submit" className="btn btn-primario">Aplicar subida / ajuste</button>
+        </div>
+      </form>
 
       <div className="grid-2" style={{ gap: '2rem', alignItems: 'start' }}>
         <div>

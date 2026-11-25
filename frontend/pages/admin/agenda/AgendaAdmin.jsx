@@ -35,10 +35,11 @@ export default function AgendaAdmin() {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
-  // Calendario mensual y ventana emergente del día seleccionado
+  // Calendario mensual y ventana emergente del día seleccionado o de una cita concreta
   const hoy = new Date();
   const [mesVisible, setMesVisible] = useState({ anio: hoy.getFullYear(), mes: hoy.getMonth() });
   const [diaModal, setDiaModal] = useState(null); // 'YYYY-MM-DD'
+  const [citaDetalleModal, setCitaDetalleModal] = useState(null);
 
   // Estados para pedir el motivo cuando el admin cancela una cita concreta
   const [citaCancelandoId, setCitaCancelandoId] = useState(null);
@@ -131,13 +132,30 @@ export default function AgendaAdmin() {
           Cliente: {c.cliente_nombre} {c.cliente_apellidos} ({c.cliente_telefono || c.cliente_email})
         </p>
 
-        {/* Resumen de pago: pagado entero, señal + restante, o efectivo pendiente */}
+        {/* Resumen exacto de pago: distingue Bono, Tarjeta Regalo, Pago completo, Señal o Efectivo */}
         <p style={{ fontSize: '0.84rem', marginTop: '0.35rem', color: c.pago_estado === 'pagado' ? 'var(--exito)' : 'var(--terracota)', fontWeight: 600 }}>
-          {c.pago_estado === 'pagado' && `✅ Pagado al 100% / Bono o Tarjeta Regalo (${precioTotal.toFixed(2)} €)`}
+          {c.origen_pago?.startsWith('Tarjeta Regalo:') && `🎁 ${c.origen_pago}`}
+          {c.origen_pago?.startsWith('Bono:') && `🎟️ ${c.origen_pago}`}
+          {!c.origen_pago?.startsWith('Tarjeta Regalo:') && !c.origen_pago?.startsWith('Bono:') && c.pago_estado === 'pagado' && `✅ Pagado al 100% (${precioTotal.toFixed(2)} €)`}
           {c.pago_estado === 'senal_pagada' && `💳 Señal pagada (${senal.toFixed(2)} €) · Falta por cobrar: ${pendienteSenal.toFixed(2)} €`}
-          {c.pago_estado === 'pendiente' && `💵 Pendiente en efectivo / sala: ${precioTotal.toFixed(2)} €`}
+          {c.pago_estado === 'pendiente' && `💵 Efectivo pendiente en sala: ${precioTotal.toFixed(2)} €`}
           {c.pago_estado === 'reembolsado' && '↩️ Reembolsado'}
         </p>
+
+        <button
+          type="button"
+          className="btn btn-suave"
+          style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', marginTop: '0.45rem' }}
+          onClick={() => setCitaDetalleModal(c)}
+        >
+          Ver / Gestionar pago y detalle
+        </button>
+
+        {c.estado === 'completada' && c.completada_en && (
+          <p style={{ fontSize: '0.82rem', color: 'var(--exito)', fontWeight: 600, marginTop: '0.3rem' }}>
+            ✅ Marcada como realizada el {c.completada_en.slice(0, 10)} a las {c.completada_en.slice(11, 16)}
+          </p>
+        )}
 
         {c.motivo_cancelacion && (
           <p style={{ fontSize: '0.84rem', color: 'var(--error)', marginTop: '0.4rem' }}>
@@ -178,7 +196,7 @@ export default function AgendaAdmin() {
               style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
               onClick={() => cambiarEstado(c.id, 'completada')}
             >
-              Realizada
+              {c.origen_pago?.startsWith('Bono:') ? 'Sesión de bono hecha' : 'Realizada'}
             </button>
             <button
               type="button"
@@ -382,6 +400,78 @@ export default function AgendaAdmin() {
             ) : (
               citasDelDiaModal.map((c) => renderTarjetaCita(c))
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Ventana emergente de detalle y gestión de una cita concreta */}
+      {citaDetalleModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 130,
+            background: 'rgba(46, 42, 39, 0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}
+          onClick={() => setCitaDetalleModal(null)}
+        >
+          <div
+            className="tarjeta"
+            style={{ width: 'min(480px, 100%)', padding: '1.5rem' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.45rem' }}>Detalle de la Cita</h3>
+              <button type="button" className="icono-btn" onClick={() => setCitaDetalleModal(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <p><strong>Terapia:</strong> {citaDetalleModal.servicio_nombre}</p>
+            <p><strong>Fecha y hora:</strong> {citaDetalleModal.fecha} · {citaDetalleModal.hora_inicio.slice(0, 5)}</p>
+            <p><strong>Cliente:</strong> {citaDetalleModal.cliente_nombre} {citaDetalleModal.cliente_apellidos}</p>
+            <p><strong>Origen / Pago:</strong> {citaDetalleModal.origen_pago || citaDetalleModal.pago_estado}</p>
+            {citaDetalleModal.notas_cliente && <p><strong>Notas del cliente:</strong> {citaDetalleModal.notas_cliente}</p>}
+
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1.2rem' }}>
+              {citaDetalleModal.estado === 'cancelada' ? (
+                <p style={{ color: 'var(--error)', fontSize: '0.88rem', fontWeight: 600 }}>
+                  Esta cita está cancelada y no se puede cobrar ni marcar como realizada.
+                </p>
+              ) : (
+                <>
+                  {citaDetalleModal.pago_estado !== 'pagado' && (
+                    <button
+                      type="button"
+                      className="btn btn-primario"
+                      onClick={async () => {
+                        await apiFetch(`/citas/${citaDetalleModal.id}/estado`, {
+                          method: 'PATCH',
+                          body: JSON.stringify({ pago_estado: 'pagado' })
+                        });
+                        setMensaje('Pago marcado como completado.');
+                        setCitaDetalleModal(null);
+                        cargarTodo();
+                      }}
+                    >
+                      Marcar pagado en sala
+                    </button>
+                  )}
+                  {citaDetalleModal.estado !== 'completada' && (
+                    <button
+                      type="button"
+                      className="btn btn-salvia"
+                      onClick={async () => {
+                        await cambiarEstado(citaDetalleModal.id, 'completada');
+                        setCitaDetalleModal(null);
+                      }}
+                    >
+                      {citaDetalleModal.origen_pago?.startsWith('Bono:')
+                        ? 'Esta sesión de bono se ha hecho'
+                        : 'Marcar cita realizada'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

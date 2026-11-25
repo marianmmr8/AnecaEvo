@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import AgendaAdmin from './agenda/AgendaAdmin';
 import ClientesAdmin from './clientes/ClientesAdmin';
 import InventarioAdmin from './inventario/InventarioAdmin';
+import PedidosAdmin from './pedidos/PedidosAdmin';
 
 export default function AdminPanelPage() {
   const { usuario } = useAuth();
@@ -33,11 +34,15 @@ export default function AdminPanelPage() {
           <button type="button" className={`btn ${pestana === 'inventario' ? 'btn-primario' : 'btn-suave'}`} onClick={() => setPestana('inventario')}>
             Inventario y Servicios
           </button>
+          <button type="button" className={`btn ${pestana === 'pedidos' ? 'btn-primario' : 'btn-suave'}`} onClick={() => setPestana('pedidos')}>
+            Pedidos
+          </button>
         </div>
 
         {pestana === 'agenda' && <AgendaAdmin />}
         {pestana === 'clientes' && <ClientesAdmin />}
         {pestana === 'inventario' && <InventarioAdmin />}
+        {pestana === 'pedidos' && <PedidosAdmin />}
       </div>
     </div>
   );

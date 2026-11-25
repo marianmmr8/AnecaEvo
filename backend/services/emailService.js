@@ -51,9 +51,22 @@ async function enviarRecuperacionPassword({ email, nombre, token }) {
   return { enviado: true, canal: 'simulado' };
 }
 
+/**
+ * enviarConfirmacionPedido: Notifica al cliente cuando el administrador acepta/confirma su pedido.
+ */
+async function enviarConfirmacionPedido({ email, nombre, pedidoId, total }) {
+  console.log('------------------------------------------------------------');
+  console.log(`[EMAIL PEDIDO ACEPTADO] Hola ${nombre} (${email})`);
+  console.log(`Tu pedido #${pedidoId.slice(0, 8)} (${Number(total).toFixed(2)} €) ha sido aceptado.`);
+  console.log('En breve se pondrá en contacto contigo la empresa repartidora para la entrega.');
+  console.log('------------------------------------------------------------');
+  return { enviado: true, canal: 'simulado' };
+}
+
 module.exports = {
   enviarConfirmacionCita,
   enviarRecordatorio24h,
   enviarCancelacionCita,
-  enviarRecuperacionPassword
+  enviarRecuperacionPassword,
+  enviarConfirmacionPedido
 };

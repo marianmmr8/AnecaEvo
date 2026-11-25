@@ -13,7 +13,13 @@ export default function CarritoLateral() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
 
+  const [nombreEnvio, setNombreEnvio] = useState('');
+  const [telefonoEnvio, setTelefonoEnvio] = useState('');
+  const [emailEnvio, setEmailEnvio] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [codigoPostal, setCodigoPostal] = useState('');
+  const [ciudad, setCiudad] = useState('');
+  const [comentarioEnvio, setComentarioEnvio] = useState('');
   const [metodoPago, setMetodoPago] = useState('tarjeta');
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState('');
@@ -34,9 +40,11 @@ export default function CarritoLateral() {
 
     setProcesando(true);
     try {
+      const notaTexto = comentarioEnvio.trim() ? ` · Nota: ${comentarioEnvio.trim()}` : '';
+      const direccionCompleta = `${nombreEnvio.trim()} · Tel: ${telefonoEnvio.trim()} · Email: ${emailEnvio.trim()} · ${direccion.trim()}, ${codigoPostal.trim()} ${ciudad.trim()}${notaTexto}`;
       const payload = {
         items: items.map((i) => ({ producto_id: i.producto.id, cantidad: i.cantidad })),
-        direccion_envio: direccion,
+        direccion_envio: direccionCompleta,
         metodo_pago: metodoPago
       };
       const res = await apiFetch('/pedidos', {
@@ -45,7 +53,13 @@ export default function CarritoLateral() {
       });
       setMensaje(res.mensaje);
       vaciarCarrito();
+      setNombreEnvio('');
+      setTelefonoEnvio('');
+      setEmailEnvio('');
       setDireccion('');
+      setCodigoPostal('');
+      setCiudad('');
+      setComentarioEnvio('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -125,13 +139,58 @@ export default function CarritoLateral() {
             </div>
 
             <div className="campo">
-              <label>Dirección de envío</label>
+              <label>Nombre completo</label>
+              <input type="text" required placeholder="Nombre y apellidos" value={nombreEnvio} onChange={(e) => setNombreEnvio(e.target.value)} />
+            </div>
+
+            <div className="grid-2" style={{ gap: '0.6rem' }}>
+              <div className="campo">
+                <label>Teléfono</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  required
+                  pattern="[0-9+]{9,15}"
+                  placeholder="600111222"
+                  value={telefonoEnvio}
+                  onChange={(e) => setTelefonoEnvio(e.target.value.replace(/[^0-9+]/g, ''))}
+                />
+              </div>
+              <div className="campo">
+                <label>Email</label>
+                <input type="email" required placeholder="tu@email.com" value={emailEnvio} onChange={(e) => setEmailEnvio(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="campo">
+              <label>Dirección completa</label>
               <input
                 type="text"
                 required
-                placeholder="Calle, número, piso, ciudad..."
+                placeholder="Calle, número, piso, puerta..."
                 value={direccion}
                 onChange={(e) => setDireccion(e.target.value)}
+              />
+            </div>
+
+            <div className="grid-2" style={{ gap: '0.6rem' }}>
+              <div className="campo">
+                <label>Código Postal</label>
+                <input type="text" required placeholder="28001" value={codigoPostal} onChange={(e) => setCodigoPostal(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label>Ciudad / Provincia</label>
+                <input type="text" required placeholder="Madrid" value={ciudad} onChange={(e) => setCiudad(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="campo">
+              <label>Comentario para el envío (opcional)</label>
+              <textarea
+                rows={2}
+                placeholder="Ej: Dejar en portería, envolver para regalo..."
+                value={comentarioEnvio}
+                onChange={(e) => setComentarioEnvio(e.target.value)}
               />
             </div>
 

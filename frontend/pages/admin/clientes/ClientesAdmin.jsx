@@ -2,7 +2,9 @@
 // ADMIN: CLIENTES Y FICHAS PRIVADAS DE EVOLUCIÓN + BONOS
 // ============================================================================
 import { useEffect, useState } from 'react';
+import { Download, Mail, MessageCircle } from 'lucide-react';
 import { apiFetch } from '../../../services/api';
+import { descargarTarjetaRegaloPDF } from '../../../services/tarjetaPdf';
 
 export default function ClientesAdmin() {
   const [clientes, setClientes] = useState([]);
@@ -20,6 +22,7 @@ export default function ClientesAdmin() {
   const [regaloPrecio, setRegaloPrecio] = useState('65');
   const [regaloDescripcion, setRegaloDescripcion] = useState('');
   const [regaloDedicatoria, setRegaloDedicatoria] = useState('');
+  const [tarjetaGeneradaAdmin, setTarjetaGeneradaAdmin] = useState(null);
   const [bonosCliente, setBonosCliente] = useState([]);
   const [codigoCanjearAdmin, setCodigoCanjearAdmin] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -187,6 +190,10 @@ export default function ClientesAdmin() {
         })
       });
       setMensaje(res.mensaje);
+      setTarjetaGeneradaAdmin({
+        ...res.tarjeta,
+        nombre_destinatario: `${seleccionado.nombre} ${seleccionado.apellidos}`
+      });
       setRegaloDescripcion('');
       setRegaloDedicatoria('');
     } catch (err) {
@@ -374,6 +381,44 @@ export default function ClientesAdmin() {
                 <input type="text" placeholder="Un momento de calma para ti..." value={regaloDedicatoria} onChange={(e) => setRegaloDedicatoria(e.target.value)} />
               </div>
               <button type="submit" className="btn btn-primario">Generar código de Tarjeta Regalo</button>
+
+              {tarjetaGeneradaAdmin && (
+                <div className="alerta-exito" style={{ marginTop: '1rem' }}>
+                  <p style={{ marginBottom: '0.6rem' }}>
+                    <strong>Tarjeta lista:</strong> {tarjetaGeneradaAdmin.codigo}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primario"
+                      style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}
+                      onClick={() => descargarTarjetaRegaloPDF(tarjetaGeneradaAdmin)}
+                    >
+                      <Download size={14} /> Descargar PDF
+                    </button>
+                    {seleccionado.telefono && (
+                      <a
+                        href={`https://wa.me/${seleccionado.telefono.replace(/\D/g, '').length === 9 ? `34${seleccionado.telefono.replace(/\D/g, '')}` : seleccionado.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${seleccionado.nombre}, aquí tienes tu Tarjeta Regalo de Aneca Evo. Código para canjear: ${tarjetaGeneradaAdmin.codigo}`)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-salvia"
+                        style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}
+                      >
+                        <MessageCircle size={14} /> WhatsApp
+                      </a>
+                    )}
+                    {seleccionado.email && (
+                      <a
+                        href={`mailto:${seleccionado.email}?subject=${encodeURIComponent('Tu Tarjeta Regalo - Aneca Evo')}&body=${encodeURIComponent(`Hola ${seleccionado.nombre},\n\nAquí tienes tu Tarjeta Regalo de Aneca Evo.\nCódigo para canjear tu cita: ${tarjetaGeneradaAdmin.codigo}\n\nUn abrazo,\nAneca Evo`)}`}
+                        className="btn btn-suave"
+                        style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}
+                      >
+                        <Mail size={14} /> Email
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--borde-suave)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <input

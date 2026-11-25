@@ -163,4 +163,42 @@ async function eliminarProducto(req, res) {
   }
 }
 
-module.exports = { listarProductos, crearProducto, actualizarProducto, eliminarProducto, subirImagenProducto };
+/**
+ * POST /api/productos/ajuste-precios - Actualiza precios en masa por categoría en % o € (Solo Admin)
+ */
+async function ajustarPreciosMasivo(req, res) {
+  try {
+    const { tabla, categoria, tipo, valor } = req.body;
+    const numValor = Number(valor);
+
+    if (!['productos', 'servicios'].includes(tabla)) {
+      return res.status(400).json({ error: 'Destino no válido.' });
+    }
+    if (!['porcentaje', 'euros'].includes(tipo) || Number.isNaN(numValor) || numValor === 0) {
+      return res.status(400).json({ error: 'Indica un valor numérico distinto de 0.' });
+    }
+
+    const expresion = tipo === 'porcentaje'
+      ? 'GREATEST(0, ROUND(precio * (1 + ? / 100), 2))'
+      : 'GREATEST(0, ROUND(precio + ?, 2))';
+
+    let sql = `UPDATE ${tabla} SET precio = ${expresion}`;
+    const params = [numValor];
+
+    if (categoria && categoria !== 'todas') {
+      sql += ' WHERE categoria = ?';
+      params.push(categoria);
+    }
+
+    const [resultado] = await pool.query(sql, params);
+    return res.json({
+      mensaje: `Precios actualizados en ${resultado.affectedRows} ${tabla}.`,
+      actualizados: resultado.affectedRows
+    });
+  } catch (error) {
+    console.error('Error en ajuste masivo de precios:', error);
+    return res.status(500).json({ error: 'No se pudieron actualizar los precios.' });
+  }
+}
+
+module.exports = { listarProductos, crearProducto, actualizarProducto, eliminarProducto, subirImagenProducto, ajustarPreciosMasivo };

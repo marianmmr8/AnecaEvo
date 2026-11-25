@@ -30,7 +30,27 @@ export default function MiCuentaPage() {
   const [citas, setCitas] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [bonos, setBonos] = useState([]);
+  const [editandoPedidoId, setEditandoPedidoId] = useState(null);
+  const [editEnvNombre, setEditEnvNombre] = useState('');
+  const [editEnvTel, setEditEnvTel] = useState('');
+  const [editEnvEmail, setEditEnvEmail] = useState('');
+  const [editEnvDir, setEditEnvDir] = useState('');
+  const [editEnvCp, setEditEnvCp] = useState('');
+  const [editEnvCiudad, setEditEnvCiudad] = useState('');
+  const [editEnvNota, setEditEnvNota] = useState('');
+
+  const [cancelandoPedidoId, setCancelandoPedidoId] = useState(null);
+  const [motivoCancelPedido, setMotivoCancelPedido] = useState('Comprado por error');
+  const [otroMotivoPedido, setOtroMotivoPedido] = useState('');
+
+  const [ahoraMs, setAhoraMs] = useState(() => Date.now());
   const [error, setError] = useState('');
+
+  // Actualiza el reloj cada segundo para la cuenta atrás de 12h en los pedidos
+  useEffect(() => {
+    const timer = setInterval(() => setAhoraMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [mensaje, setMensaje] = useState('');
 
   useEffect(() => {
@@ -357,7 +377,14 @@ export default function MiCuentaPage() {
                     <p style={{ fontSize: '0.9rem', color: 'var(--texto-suave)' }}>
                       {c.fecha} · {c.hora_inicio.slice(0, 5)} ({c.modalidad})
                     </p>
-                    <small style={{ color: 'var(--salvia)' }}>Pago: {c.pago_estado}</small>
+                    <small style={{ color: 'var(--salvia)', display: 'block' }}>
+                      {c.origen_pago || `Pago: ${c.pago_estado}`}
+                    </small>
+                    {c.estado === 'completada' && c.completada_en && (
+                      <p style={{ fontSize: '0.82rem', color: 'var(--exito)', fontWeight: 600, marginTop: '0.3rem' }}>
+                        ✅ Completada el {c.completada_en.slice(0, 10)} a las {c.completada_en.slice(11, 16)}
+                      </p>
+                    )}
                     {c.estado === 'cancelada' && c.motivo_cancelacion && (
                       <p style={{ fontSize: '0.84rem', color: 'var(--error)', marginTop: '0.4rem' }}>
                         <strong>Motivo:</strong> {c.motivo_cancelacion}
@@ -384,24 +411,196 @@ export default function MiCuentaPage() {
             <p style={{ color: 'var(--texto-suave)' }}>Todavía no has realizado ningún pedido.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {pedidos.map((p) => (
-                <div key={p.id} className="tarjeta" style={{ padding: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
-                    <strong>Pedido #{p.id.slice(0, 8)} · {p.estado}</strong>
-                    <strong style={{ color: 'var(--terracota)' }}>{Number(p.total).toFixed(2)} €</strong>
+              {pedidos.map((p) => {
+                const fechaPedidoMs = new Date(p.fecha_pedido.replace(' ', 'T')).getTime();
+                const msRestantes = fechaPedidoMs + 12 * 60 * 60 * 1000 - ahoraMs;
+                const editable12h = msRestantes > 0 && !['enviado', 'entregado', 'cancelado'].includes(p.estado);
+
+                const segsTotales = Math.max(0, Math.floor(msRestantes / 1000));
+                const hRest = String(Math.floor(segsTotales / 3600)).padStart(2, '0');
+                const mRest = String(Math.floor((segsTotales % 3600) / 60)).padStart(2, '0');
+                const sRest = String(segsTotales % 60).padStart(2, '0');
+
+                return (
+                  <div key={p.id} className="tarjeta" style={{ padding: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <strong>Pedido #{p.id.slice(0, 8)} · {p.estado}</strong>
+                      <strong style={{ color: 'var(--terracota)' }}>{Number(p.total).toFixed(2)} €</strong>
+                    </div>
+
+                    <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: '0.45rem' }}>
+                      Realizado el: <strong>{p.fecha_pedido?.slice(0, 16).replace('T', ' ')}</strong>
+                    </p>
+
+                    {p.estado !== 'cancelado' && p.estado !== 'entregado' && (
+                      <div style={{ fontSize: '0.85rem', marginBottom: '0.55rem', padding: '0.55rem 0.75rem', borderRadius: 8, background: '#fdf8f2', border: '1px solid var(--borde-suave)' }}>
+                        <div style={{ color: 'var(--salvia)', fontWeight: 600 }}>
+                          📦 Tu paquete está siendo procesado por Aneca Evo.
+                        </div>
+                        <div style={{ color: 'var(--texto-suave)', marginTop: '0.2rem' }}>
+                          Nota: El pedido solo se puede modificar o cancelar durante las primeras 12 horas (antes de ser enviado).
+                        </div>
+                        {editable12h && (
+                          <div style={{ color: 'var(--terracota)', fontWeight: 700, marginTop: '0.25rem' }}>
+                            ⏱️ Tiempo restante para modificar o cancelar: {hRest}h {mRest}m {sRest}s
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <p style={{ fontSize: '0.86rem', color: 'var(--texto-suave)', marginBottom: '0.5rem' }}>
+                      Envío: {p.direccion_envio}
+                    </p>
+                    <ul style={{ paddingLeft: '1.2rem', fontSize: '0.88rem', marginBottom: '0.75rem' }}>
+                      {p.detalles?.map((d) => (
+                        <li key={d.id}>
+                          {d.cantidad}x {d.producto_nombre} ({Number(d.precio_unitario).toFixed(2)} €)
+                        </li>
+                      ))}
+                    </ul>
+
+                    {editable12h && (
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-suave"
+                          style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}
+                          onClick={() => {
+                            setEditandoPedidoId(p.id);
+                            setCancelandoPedidoId(null);
+                            setEditEnvNombre(usuario.nombre ? `${usuario.nombre} ${usuario.apellidos || ''}`.trim() : '');
+                            setEditEnvTel(usuario.telefono || '');
+                            setEditEnvEmail(usuario.email || '');
+                            setEditEnvDir('');
+                            setEditEnvCp('');
+                            setEditEnvCiudad('');
+                            setEditEnvNota('');
+                          }}
+                        >
+                          Modificar envío (12h)
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-contorno"
+                          style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}
+                          onClick={() => {
+                            setCancelandoPedidoId(p.id);
+                            setEditandoPedidoId(null);
+                            setMotivoCancelPedido('Comprado por error');
+                            setOtroMotivoPedido('');
+                          }}
+                        >
+                          Cancelar pedido (12h)
+                        </button>
+                      </div>
+                    )}
+
+                    {cancelandoPedidoId === p.id && (
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setError('');
+                          setMensaje('');
+                          const motivoFinal = motivoCancelPedido === 'Otro motivo' ? otroMotivoPedido : motivoCancelPedido;
+                          try {
+                            const res = await apiFetch(`/pedidos/${p.id}/cancelar`, {
+                              method: 'PATCH',
+                              body: JSON.stringify({ motivo: motivoFinal })
+                            });
+                            setMensaje(res.mensaje);
+                            setCancelandoPedidoId(null);
+                            cargarDatosCliente();
+                          } catch (err) {
+                            setError(err.message);
+                          }
+                        }}
+                        style={{ marginTop: '0.8rem', paddingTop: '0.8rem', borderTop: '1px dashed var(--borde-suave)' }}
+                      >
+                        <div className="campo" style={{ marginBottom: '0.5rem' }}>
+                          <label>¿Por qué quieres cancelar el pedido?</label>
+                          <select value={motivoCancelPedido} onChange={(e) => setMotivoCancelPedido(e.target.value)}>
+                            <option value="Comprado por error">Comprado por error</option>
+                            <option value="Ya no lo necesito">Ya no lo necesito</option>
+                            <option value="Cambio en los datos / dirección">Cambio en los datos / dirección</option>
+                            <option value="Otro motivo">Otro motivo</option>
+                          </select>
+                        </div>
+                        {motivoCancelPedido === 'Otro motivo' && (
+                          <div className="campo" style={{ marginBottom: '0.5rem' }}>
+                            <label>Explícanos el motivo</label>
+                            <input type="text" required value={otroMotivoPedido} onChange={(e) => setOtroMotivoPedido(e.target.value)} />
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button type="submit" className="btn btn-primario" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Confirmar cancelación</button>
+                          <button type="button" className="btn btn-suave" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }} onClick={() => setCancelandoPedidoId(null)}>Volver</button>
+                        </div>
+                      </form>
+                    )}
+
+                    {editandoPedidoId === p.id && (
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setError('');
+                          setMensaje('');
+                          const notaTxt = editEnvNota.trim() ? ` · Nota: ${editEnvNota.trim()}` : '';
+                          const dirCompleta = `${editEnvNombre.trim()} · Tel: ${editEnvTel.trim()} · Email: ${editEnvEmail.trim()} · ${editEnvDir.trim()}, ${editEnvCp.trim()} ${editEnvCiudad.trim()}${notaTxt}`;
+                          try {
+                            const res = await apiFetch(`/pedidos/${p.id}/modificar`, {
+                              method: 'PATCH',
+                              body: JSON.stringify({ direccion_envio: dirCompleta })
+                            });
+                            setMensaje(res.mensaje);
+                            setEditandoPedidoId(null);
+                            cargarDatosCliente();
+                          } catch (err) {
+                            setError(err.message);
+                          }
+                        }}
+                        style={{ marginTop: '0.8rem', paddingTop: '0.8rem', borderTop: '1px dashed var(--borde-suave)' }}
+                      >
+                        <div className="grid-2" style={{ gap: '0.5rem' }}>
+                          <div className="campo" style={{ marginBottom: '0.4rem' }}>
+                            <label>Nombre completo</label>
+                            <input type="text" required value={editEnvNombre} onChange={(e) => setEditEnvNombre(e.target.value)} />
+                          </div>
+                          <div className="campo" style={{ marginBottom: '0.4rem' }}>
+                            <label>Teléfono</label>
+                            <input type="tel" required value={editEnvTel} onChange={(e) => setEditEnvTel(e.target.value.replace(/[^0-9+]/g, ''))} />
+                          </div>
+                        </div>
+                        <div className="campo" style={{ marginBottom: '0.4rem' }}>
+                          <label>Email</label>
+                          <input type="email" required value={editEnvEmail} onChange={(e) => setEditEnvEmail(e.target.value)} />
+                        </div>
+                        <div className="campo" style={{ marginBottom: '0.4rem' }}>
+                          <label>Dirección completa</label>
+                          <input type="text" required placeholder="Calle, número, piso..." value={editEnvDir} onChange={(e) => setEditEnvDir(e.target.value)} />
+                        </div>
+                        <div className="grid-2" style={{ gap: '0.5rem' }}>
+                          <div className="campo" style={{ marginBottom: '0.4rem' }}>
+                            <label>Código Postal</label>
+                            <input type="text" required value={editEnvCp} onChange={(e) => setEditEnvCp(e.target.value)} />
+                          </div>
+                          <div className="campo" style={{ marginBottom: '0.4rem' }}>
+                            <label>Ciudad</label>
+                            <input type="text" required value={editEnvCiudad} onChange={(e) => setEditEnvCiudad(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="campo" style={{ marginBottom: '0.5rem' }}>
+                          <label>Comentario para el envío (opcional)</label>
+                          <input type="text" value={editEnvNota} onChange={(e) => setEditEnvNota(e.target.value)} />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button type="submit" className="btn btn-primario" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Guardar nuevos datos</button>
+                          <button type="button" className="btn btn-suave" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }} onClick={() => setEditandoPedidoId(null)}>Volver</button>
+                        </div>
+                      </form>
+                    )}
                   </div>
-                  <p style={{ fontSize: '0.86rem', color: 'var(--texto-suave)', marginBottom: '0.5rem' }}>
-                    Envío: {p.direccion_envio}
-                  </p>
-                  <ul style={{ paddingLeft: '1.2rem', fontSize: '0.88rem' }}>
-                    {p.detalles?.map((d) => (
-                      <li key={d.id}>
-                        {d.cantidad}x {d.producto_nombre} ({Number(d.precio_unitario).toFixed(2)} €)
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

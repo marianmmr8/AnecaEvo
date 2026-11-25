@@ -74,7 +74,9 @@ export default function BonosPage() {
             <div className="alerta-exito">
               <p style={{ marginBottom: '0.8rem' }}>{mensaje}</p>
               <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                <Link to="/reservar" className="btn btn-primario">Reservar cita ahora</Link>
+                <Link to={servicioId ? `/reservar?servicio=${servicioId}` : '/reservar'} className="btn btn-primario">
+                  Reservar cita ahora
+                </Link>
                 <button type="button" className="btn btn-suave" onClick={() => setMensaje('')}>Comprar otro bono</button>
               </div>
             </div>

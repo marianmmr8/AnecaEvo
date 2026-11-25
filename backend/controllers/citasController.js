@@ -20,6 +20,22 @@ async function asegurarColumnaMotivoCancelacion() {
   if (cols.length === 0) {
     await pool.query('ALTER TABLE citas ADD COLUMN motivo_cancelacion TEXT NULL AFTER notas_cliente');
   }
+  const [colsOrigen] = await pool.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'citas' AND COLUMN_NAME = 'origen_pago'`,
+    [dbName]
+  );
+  if (colsOrigen.length === 0) {
+    await pool.query('ALTER TABLE citas ADD COLUMN origen_pago VARCHAR(150) NULL AFTER pago_estado');
+  }
+  const [colsCompletada] = await pool.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'citas' AND COLUMN_NAME = 'completada_en'`,
+    [dbName]
+  );
+  if (colsCompletada.length === 0) {
+    await pool.query('ALTER TABLE citas ADD COLUMN completada_en DATETIME NULL AFTER origen_pago');
+  }
   columnaMotivoVerificada = true;
 }
 
@@ -166,12 +182,14 @@ async function crearCita(req, res) {
       return res.status(409).json({ error: 'Lo sentimos, esa hora ya no está disponible. Elige otro horario.' });
     }
 
+    await asegurarColumnaMotivoCancelacion();
     await conexion.beginTransaction();
 
     let pagoEstado = 'pendiente';
+    let origenPago = 'Efectivo';
     let estadoCita = 'confirmada';
 
-    // Si el cliente canjea una Tarjeta Regalo, la validamos y la marcamos como canjeada
+    // Si el cliente canjea una Tarjeta Regalo, la validamos y la marcamos como canjeada con fecha y hora
     if (codigo_regalo) {
       const codigoLimpio = String(codigo_regalo).trim().toUpperCase();
       const [tarjetas] = await conexion.query(
@@ -195,7 +213,10 @@ async function crearCita(req, res) {
         "UPDATE tarjetas_regalo SET estado = 'canjeada', canjeada_por_usuario_id = ? WHERE id = ?",
         [req.usuario.id, tarjeta.id]
       );
+      const ahora = new Date();
+      const fechaCanje = `${ahora.toLocaleDateString('es-ES')} ${ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
       pagoEstado = 'pagado';
+      origenPago = `Tarjeta Regalo: ${codigoLimpio} (canjeada ${fechaCanje})`;
     } else if (bono_id) {
       const [bonos] = await conexion.query(
         'SELECT * FROM bonos_clientes WHERE id = ? AND usuario_id = ? AND activo = TRUE AND sesiones_restantes > 0 FOR UPDATE',
@@ -209,11 +230,15 @@ async function crearCita(req, res) {
         'UPDATE bonos_clientes SET sesiones_restantes = sesiones_restantes - 1 WHERE id = ?',
         [bono_id]
       );
+      const ahora = new Date();
+      const fechaCanje = `${ahora.toLocaleDateString('es-ES')} ${ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
       pagoEstado = 'pagado';
+      origenPago = `Bono: ${bonos[0].nombre_bono} (canjeado ${fechaCanje})`;
     } else if (tipo_pago === 'efectivo') {
       pagoEstado = 'pendiente';
+      origenPago = 'Efectivo en sala';
     } else if (tipo_pago === 'senal' || tipo_pago === 'total') {
-      // Procesamos señal (20% o mínimo 15€) o pago total mediante servicio de pago
+      // Procesamos señal (25% o mínimo 15€) o pago total mediante servicio de pago
       const importe = tipo_pago === 'total' ? Number(servicio.precio) : Math.max(15, Number((servicio.precio * 0.25).toFixed(2)));
       await procesarPago({
         importe,
@@ -221,6 +246,7 @@ async function crearCita(req, res) {
         concepto: `Reserva ${servicio.nombre} (${fecha} ${hora_inicio})`
       });
       pagoEstado = tipo_pago === 'total' ? 'pagado' : 'senal_pagada';
+      origenPago = tipo_pago === 'total' ? `Pago completo (${metodo_pago || 'tarjeta'})` : `Señal 25% (${metodo_pago || 'tarjeta'})`;
     }
 
     const citaId = randomUUID();
@@ -228,9 +254,9 @@ async function crearCita(req, res) {
     const horaFinSql = aHoraSql(aMinutos(slotValido.hora_fin));
 
     await conexion.query(
-      `INSERT INTO citas (id, usuario_id, servicio_id, fecha, hora_inicio, hora_fin, modalidad, estado, pago_estado, notas_cliente)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [citaId, req.usuario.id, servicio.id, fecha, horaInicioSql, horaFinSql, modalidad, estadoCita, pagoEstado, notas_cliente || null]
+      `INSERT INTO citas (id, usuario_id, servicio_id, fecha, hora_inicio, hora_fin, modalidad, estado, pago_estado, origen_pago, notas_cliente)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [citaId, req.usuario.id, servicio.id, fecha, horaInicioSql, horaFinSql, modalidad, estadoCita, pagoEstado, origenPago, notas_cliente || null]
     );
 
     // Si el cliente rellenó el cuestionario previo (Anamnesis: alergias, embarazo, lesiones...), lo guardamos en fichas_clientes
@@ -352,6 +378,11 @@ async function actualizarEstadoCita(req, res) {
     const { id } = req.params;
     const { estado, pago_estado, motivo_cancelacion } = req.body;
 
+    const [actuales] = await pool.query('SELECT estado FROM citas WHERE id = ?', [id]);
+    if (actuales.length > 0 && actuales[0].estado === 'cancelada') {
+      return res.status(400).json({ error: 'Una cita cancelada no se puede cobrar ni marcar como realizada.' });
+    }
+
     if (estado === 'cancelada' && (!motivo_cancelacion || !motivo_cancelacion.trim())) {
       return res.status(400).json({ error: 'Indica un motivo para explicar la cancelación al cliente.' });
     }
@@ -360,9 +391,10 @@ async function actualizarEstadoCita(req, res) {
       `UPDATE citas
        SET estado = COALESCE(?, estado),
            pago_estado = COALESCE(?, pago_estado),
-           motivo_cancelacion = COALESCE(?, motivo_cancelacion)
+           motivo_cancelacion = COALESCE(?, motivo_cancelacion),
+           completada_en = CASE WHEN ? = 'completada' THEN NOW() ELSE completada_en END
        WHERE id = ?`,
-      [estado || null, pago_estado || null, motivo_cancelacion ? motivo_cancelacion.trim() : null, id]
+      [estado || null, pago_estado || null, motivo_cancelacion ? motivo_cancelacion.trim() : null, estado || null, id]
     );
 
     // Si el administrador cancela, enviamos aviso con el motivo al cliente

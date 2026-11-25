@@ -4,6 +4,22 @@
 const { randomUUID } = require('crypto');
 const { pool } = require('../config/db');
 const { procesarPago } = require('../services/pagoService');
+const { enviarConfirmacionPedido } = require('../services/emailService');
+
+let columnaNotaPedidoVerificada = false;
+async function asegurarColumnaNotaPedido() {
+  if (columnaNotaPedidoVerificada) return;
+  const dbName = process.env.DB_NAME || 'aneca evo';
+  const [cols] = await pool.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'nota_cliente_cambio'`,
+    [dbName]
+  );
+  if (cols.length === 0) {
+    await pool.query('ALTER TABLE pedidos ADD COLUMN nota_cliente_cambio TEXT NULL AFTER direccion_envio');
+  }
+  columnaNotaPedidoVerificada = true;
+}
 
 /**
  * POST /api/pedidos - Crea un pedido verificando y restando el stock dentro de una transacción
@@ -123,4 +139,146 @@ async function misPedidos(req, res) {
   }
 }
 
-module.exports = { crearPedido, misPedidos };
+/**
+ * GET /api/pedidos/admin - Lista todos los pedidos de la tienda (Solo Admin)
+ */
+async function listarTodosPedidos(req, res) {
+  try {
+    const [pedidos] = await pool.query(
+      `SELECT p.*, u.nombre AS cliente_nombre, u.apellidos AS cliente_apellidos, u.email AS cliente_email, u.telefono AS cliente_telefono
+       FROM pedidos p
+       JOIN usuarios u ON p.usuario_id = u.id
+       ORDER BY p.fecha_pedido DESC`
+    );
+
+    for (const pedido of pedidos) {
+      const [detalles] = await pool.query(
+        `SELECT dp.*, pr.nombre AS producto_nombre
+         FROM detalle_pedidos dp
+         JOIN productos pr ON dp.producto_id = pr.id
+         WHERE dp.pedido_id = ?`,
+        [pedido.id]
+      );
+      pedido.detalles = detalles;
+    }
+
+    return res.json({ pedidos });
+  } catch (error) {
+    console.error('Error al listar pedidos admin:', error);
+    return res.status(500).json({ error: 'Error al cargar los pedidos.' });
+  }
+}
+
+/**
+ * PATCH /api/pedidos/:id/confirmar - El administrador acepta el pedido y avisa al cliente (Solo Admin)
+ */
+async function confirmarPedidoAdmin(req, res) {
+  try {
+    const { id } = req.params;
+    const { estado = 'preparando' } = req.body;
+
+    await pool.query('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, id]);
+
+    const [filas] = await pool.query(
+      `SELECT p.id, p.total, u.email, u.nombre
+       FROM pedidos p
+       JOIN usuarios u ON p.usuario_id = u.id
+       WHERE p.id = ?`,
+      [id]
+    );
+    if (filas.length > 0) {
+      const info = filas[0];
+      enviarConfirmacionPedido({
+        email: info.email,
+        nombre: info.nombre,
+        pedidoId: info.id,
+        total: info.total
+      }).catch(() => {});
+    }
+
+    return res.json({ mensaje: 'Pedido confirmado y notificación enviada al cliente.' });
+  } catch (error) {
+    console.error('Error al confirmar pedido:', error);
+    return res.status(500).json({ error: 'No se pudo confirmar el pedido.' });
+  }
+}
+
+/**
+ * PATCH /api/pedidos/:id/modificar - Permite al cliente modificar dirección/notas en las primeras 12 horas
+ */
+async function modificarPedidoCliente(req, res) {
+  try {
+    await asegurarColumnaNotaPedido();
+    const { id } = req.params;
+    const { direccion_envio } = req.body;
+    if (!direccion_envio || direccion_envio.trim().length < 5) {
+      return res.status(400).json({ error: 'Indica una dirección de envío válida.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM pedidos WHERE id = ? AND usuario_id = ?', [id, req.usuario.id]);
+    if (filas.length === 0) return res.status(404).json({ error: 'Pedido no encontrado.' });
+
+    const pedido = filas[0];
+    const horasTranscurridas = (Date.now() - new Date(pedido.fecha_pedido).getTime()) / (1000 * 60 * 60);
+    if (horasTranscurridas > 12 || ['enviado', 'entregado', 'cancelado'].includes(pedido.estado)) {
+      return res.status(400).json({ error: 'Solo se puede modificar el pedido durante las primeras 12 horas.' });
+    }
+
+    const ahora = new Date();
+    const fechaTxt = `${ahora.toLocaleDateString('es-ES')} ${ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    const aviso = `Dirección/datos modificados por el cliente el ${fechaTxt}`;
+
+    await pool.query('UPDATE pedidos SET direccion_envio = ?, nota_cliente_cambio = ? WHERE id = ?', [direccion_envio.trim(), aviso, id]);
+    return res.json({ mensaje: 'Datos de envío del pedido actualizados.' });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo modificar el pedido.' });
+  }
+}
+
+/**
+ * PATCH /api/pedidos/:id/cancelar - Cancela el pedido en las primeras 12 horas y devuelve el stock
+ */
+async function cancelarPedidoCliente(req, res) {
+  const conexion = await pool.getConnection();
+  try {
+    await asegurarColumnaNotaPedido();
+    const { id } = req.params;
+    const { motivo } = req.body;
+    const [filas] = await conexion.query('SELECT * FROM pedidos WHERE id = ? AND usuario_id = ?', [id, req.usuario.id]);
+    if (filas.length === 0) return res.status(404).json({ error: 'Pedido no encontrado.' });
+
+    const pedido = filas[0];
+    const horasTranscurridas = (Date.now() - new Date(pedido.fecha_pedido).getTime()) / (1000 * 60 * 60);
+    if (horasTranscurridas > 12 || ['enviado', 'entregado', 'cancelado'].includes(pedido.estado)) {
+      return res.status(400).json({ error: 'Solo se puede cancelar el pedido durante las primeras 12 horas.' });
+    }
+
+    await conexion.beginTransaction();
+    const [detalles] = await conexion.query('SELECT producto_id, cantidad FROM detalle_pedidos WHERE pedido_id = ?', [id]);
+    for (const det of detalles) {
+      await conexion.query('UPDATE productos SET stock = stock + ? WHERE id = ?', [det.cantidad, det.producto_id]);
+    }
+    const ahora = new Date();
+    const fechaTxt = `${ahora.toLocaleDateString('es-ES')} ${ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    const aviso = `Cancelado por el cliente (${fechaTxt})${motivo ? ` · Motivo: ${motivo}` : ''}`;
+
+    await conexion.query("UPDATE pedidos SET estado = 'cancelado', nota_cliente_cambio = ? WHERE id = ?", [aviso, id]);
+    await conexion.commit();
+
+    return res.json({ mensaje: 'Pedido cancelado correctamente.' });
+  } catch (error) {
+    await conexion.rollback();
+    return res.status(500).json({ error: 'No se pudo cancelar el pedido.' });
+  } finally {
+    conexion.release();
+  }
+}
+
+module.exports = {
+  crearPedido,
+  misPedidos,
+  listarTodosPedidos,
+  confirmarPedidoAdmin,
+  modificarPedidoCliente,
+  cancelarPedidoCliente
+};

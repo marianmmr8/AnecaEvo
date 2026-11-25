@@ -1,11 +1,12 @@
 // ============================================================================
 // BARRA DE NAVEGACIÓN PRINCIPAL CON DESPLEGABLES (UX Tranquila y Clara)
 // ============================================================================
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, ShoppingBag, User, Menu, X, Sparkles, Shield, LogOut, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ShoppingBag, User, Menu, X, Sparkles, Shield, LogOut, ArrowLeft, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { apiFetch } from '../../services/api';
 
 export default function Navbar() {
   const { usuario, cerrarSesion } = useAuth();
@@ -15,6 +16,32 @@ export default function Navbar() {
 
   // Detectamos si estamos dentro del Panel de Administración para mostrar una cabecera limpia
   const enPanelAdmin = pathname.startsWith('/admin');
+  const [alertasAdmin, setAlertasAdmin] = useState([]);
+  const [verAlertas, setVerAlertas] = useState(false);
+
+  useEffect(() => {
+    if (!enPanelAdmin || usuario?.rol !== 'admin') return;
+    Promise.all([
+      apiFetch('/pedidos/admin').catch(() => ({ pedidos: [] })),
+      apiFetch('/citas/admin').catch(() => ({ citas: [] }))
+    ]).then(([resP, resC]) => {
+      const lista = [];
+      (resP.pedidos || []).forEach((p) => {
+        if (p.estado === 'pagado') {
+          lista.push(`📦 Pedido #${p.id.slice(0, 8)} pendiente de confirmar (${Number(p.total).toFixed(2)} €)`);
+        }
+        if (p.nota_cliente_cambio) {
+          lista.push(`⚠️ Pedido #${p.id.slice(0, 8)}: ${p.nota_cliente_cambio}`);
+        }
+      });
+      (resC.citas || []).forEach((c) => {
+        if (c.estado === 'confirmada' || c.estado === 'pendiente') {
+          lista.push(`📅 Cita: ${c.servicio_nombre} (${c.fecha} ${c.hora_inicio.slice(0, 5)})`);
+        }
+      });
+      setAlertasAdmin(lista.slice(0, 10));
+    });
+  }, [enPanelAdmin, usuario]);
 
   if (enPanelAdmin) {
     return (
@@ -25,7 +52,47 @@ export default function Navbar() {
             <span>Aneca Evo · Administración</span>
           </Link>
 
-          <div className="nav-acciones">
+          <div className="nav-acciones" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="icono-btn"
+              onClick={() => setVerAlertas(!verAlertas)}
+              title="Notificaciones y alertas"
+            >
+              <Bell size={18} />
+              {alertasAdmin.length > 0 && <span className="badge-carrito">{alertasAdmin.length}</span>}
+            </button>
+
+            {verAlertas && (
+              <div
+                className="tarjeta"
+                style={{
+                  position: 'absolute',
+                  top: '52px',
+                  right: 0,
+                  width: 'min(360px, 90vw)',
+                  padding: '1rem',
+                  zIndex: 80,
+                  boxShadow: 'var(--sombra-suave)'
+                }}
+              >
+                <strong style={{ display: 'block', marginBottom: '0.6rem', fontSize: '0.95rem' }}>
+                  Alertas recientes ({alertasAdmin.length})
+                </strong>
+                {alertasAdmin.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--texto-suave)' }}>Sin alertas pendientes.</p>
+                ) : (
+                  <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.82rem' }}>
+                    {alertasAdmin.map((a, i) => (
+                      <li key={i} style={{ paddingBottom: '0.4rem', borderBottom: '1px solid var(--borde-suave)' }}>
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <Link to="/" className="btn btn-suave" style={{ padding: '0.5rem 1rem', fontSize: '0.88rem' }}>
               <ArrowLeft size={15} /> Ver web pública
             </Link>
