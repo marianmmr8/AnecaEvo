@@ -6,13 +6,21 @@
  * Abre una vista diseñada en tonos tierra/calma lista para Guardar como PDF
  * con imagen de masaje, nombre del destinatario, dedicatoria y código de canje.
  */
+function escaparHtml(texto) {
+  return String(texto || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function descargarTarjetaRegaloPDF(tarjeta) {
   const ventana = window.open('', '_blank', 'width=900,height=700');
   if (!ventana) return;
 
-  const destinatario = tarjeta.nombre_destinatario || 'Para ti';
-  const dedicatoria = tarjeta.dedicatoria || 'Un momento de calma y bienestar para reconectar contigo.';
-  const descripcion = tarjeta.descripcion_admin || 'Experiencia holística en Aneca Evo';
+  const destinatario = escaparHtml(tarjeta.nombre_destinatario || 'Para ti');
+  const dedicatoria = escaparHtml(tarjeta.dedicatoria || 'Un momento de calma y bienestar para reconectar contigo.');
+  const descripcion = escaparHtml(tarjeta.descripcion_admin || 'Experiencia holística en Aneca Evo');
 
   ventana.document.write(`
     <!doctype html>

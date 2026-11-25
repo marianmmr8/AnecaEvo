@@ -139,8 +139,14 @@ export default function CarritoLateral() {
             </div>
 
             <div className="campo">
-              <label>Nombre completo</label>
-              <input type="text" required placeholder="Nombre y apellidos" value={nombreEnvio} onChange={(e) => setNombreEnvio(e.target.value)} />
+              <label>Nombre completo (solo letras)</label>
+              <input
+                type="text"
+                required
+                placeholder="Nombre y apellidos"
+                value={nombreEnvio}
+                onChange={(e) => setNombreEnvio(e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/g, ''))}
+              />
             </div>
 
             <div className="grid-2" style={{ gap: '0.6rem' }}>
@@ -167,6 +173,8 @@ export default function CarritoLateral() {
               <input
                 type="text"
                 required
+                pattern=".*[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]+.*"
+                title="Introduce una dirección válida con el nombre de la calle"
                 placeholder="Calle, número, piso, puerta..."
                 value={direccion}
                 onChange={(e) => setDireccion(e.target.value)}
@@ -175,12 +183,27 @@ export default function CarritoLateral() {
 
             <div className="grid-2" style={{ gap: '0.6rem' }}>
               <div className="campo">
-                <label>Código Postal</label>
-                <input type="text" required placeholder="28001" value={codigoPostal} onChange={(e) => setCodigoPostal(e.target.value)} />
+                <label>Código Postal (5 números)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  maxLength={5}
+                  pattern="[0-9]{5}"
+                  placeholder="28001"
+                  value={codigoPostal}
+                  onChange={(e) => setCodigoPostal(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                />
               </div>
               <div className="campo">
-                <label>Ciudad / Provincia</label>
-                <input type="text" required placeholder="Madrid" value={ciudad} onChange={(e) => setCiudad(e.target.value)} />
+                <label>Ciudad / Provincia (solo letras)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Madrid"
+                  value={ciudad}
+                  onChange={(e) => setCiudad(e.target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/g, ''))}
+                />
               </div>
             </div>
 

@@ -96,12 +96,18 @@ async function calcularSlotsDisponibles(fecha, servicio) {
   const bufferNuevo = Number(servicio.margen_descanso_minutos || 15);
   const slots = [];
 
+  // Si la fecha consultada es hoy, ocultamos las horas que ya han pasado
+  const ahora = new Date();
+  const hoyLocal = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+  const minutosAhora = fecha === hoyLocal ? ahora.getHours() * 60 + ahora.getMinutes() : -1;
+
   // Recorremos cada tramo horario del día (ej. mañana y tarde) en pasos de 30 minutos
   for (const tramo of horarios) {
     const inicioTramo = aMinutos(tramo.hora_inicio);
     const finTramo = aMinutos(tramo.hora_fin);
 
     for (let inicio = inicioTramo; inicio + duracion <= finTramo; inicio += 30) {
+      if (minutosAhora >= 0 && inicio <= minutosAhora) continue;
       const finCita = inicio + duracion;
       const finConBuffer = finCita + bufferNuevo; // Tiempo total bloqueado incluyendo ventilación/limpieza
 

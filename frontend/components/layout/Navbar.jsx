@@ -22,6 +22,7 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!enPanelAdmin || usuario?.rol !== 'admin') return;
+    const leidas = JSON.parse(localStorage.getItem('aneca_alertas_leidas') || '[]');
     Promise.all([
       apiFetch('/pedidos/admin').catch(() => ({ pedidos: [] })),
       apiFetch('/citas/admin').catch(() => ({ citas: [] }))
@@ -30,12 +31,14 @@ export default function Navbar() {
       (resP.pedidos || []).forEach((p) => {
         if (p.estado === 'pagado') {
           lista.push({
+            id: `pedido-pagado-${p.id}`,
             texto: `📦 Pedido #${p.id.slice(0, 8)} pendiente de confirmar (${Number(p.total).toFixed(2)} €)`,
             ruta: '/admin?tab=pedidos'
           });
         }
         if (p.nota_cliente_cambio) {
           lista.push({
+            id: `pedido-cambio-${p.id}-${p.nota_cliente_cambio.length}`,
             texto: `⚠️ Pedido #${p.id.slice(0, 8)}: ${p.nota_cliente_cambio}`,
             ruta: '/admin?tab=pedidos'
           });
@@ -44,12 +47,13 @@ export default function Navbar() {
       (resC.citas || []).forEach((c) => {
         if (c.estado === 'confirmada' || c.estado === 'pendiente') {
           lista.push({
+            id: `cita-${c.id}`,
             texto: `📅 Cita: ${c.servicio_nombre} (${c.fecha} ${c.hora_inicio.slice(0, 5)})`,
             ruta: '/admin?tab=agenda'
           });
         }
       });
-      setAlertasAdmin(lista.slice(0, 10));
+      setAlertasAdmin(lista.filter((a) => !leidas.includes(a.id)).slice(0, 10));
     });
   }, [enPanelAdmin, usuario]);
 
@@ -98,6 +102,11 @@ export default function Navbar() {
                         <button
                           type="button"
                           onClick={() => {
+                            const leidas = JSON.parse(localStorage.getItem('aneca_alertas_leidas') || '[]');
+                            if (!leidas.includes(a.id)) {
+                              localStorage.setItem('aneca_alertas_leidas', JSON.stringify([...leidas, a.id]));
+                            }
+                            setAlertasAdmin((prev) => prev.filter((item) => item.id !== a.id));
                             setVerAlertas(false);
                             navigate(a.ruta);
                           }}

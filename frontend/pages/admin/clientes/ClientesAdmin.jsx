@@ -2,13 +2,16 @@
 // ADMIN: CLIENTES Y FICHAS PRIVADAS DE EVOLUCIÓN + BONOS
 // ============================================================================
 import { useEffect, useState } from 'react';
-import { Download, Mail, MessageCircle } from 'lucide-react';
+import { Download, Mail, MessageCircle, Search, ChevronDown } from 'lucide-react';
 import { apiFetch } from '../../../services/api';
 import { descargarTarjetaRegaloPDF } from '../../../services/tarjetaPdf';
 import CalendarioCitas from '../../../components/reservas/CalendarioCitas';
 
 export default function ClientesAdmin() {
   const [clientes, setClientes] = useState([]);
+  const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [mostrarTodosClientes, setMostrarTodosClientes] = useState(false);
+  const [seccionAbierta, setSeccionAbierta] = useState('reservar'); // 'reservar' | 'datos' | 'notas' | 'bonos' | 'regalo'
   const [seleccionado, setSeleccionado] = useState(null);
   const [fichas, setFichas] = useState([]);
 
@@ -16,7 +19,7 @@ export default function ClientesAdmin() {
   const [motivo, setMotivo] = useState('');
   const [contraindicaciones, setContraindicaciones] = useState('');
   const [notasPrivadas, setNotasPrivadas] = useState('');
-  const [nombreBono, setNombreBono] = useState('Bono 5 Masajes');
+  const [bonoServicioId, setBonoServicioId] = useState('');
   const [sesionesBono, setSesionesBono] = useState(5);
   const [servicios, setServicios] = useState([]);
   const [regaloServicioId, setRegaloServicioId] = useState('');
@@ -42,7 +45,13 @@ export default function ClientesAdmin() {
 
   useEffect(() => {
     cargarClientes();
-    apiFetch('/servicios').then((res) => setServicios(res.servicios || [])).catch(() => {});
+    apiFetch('/servicios')
+      .then((res) => {
+        const lista = res.servicios || [];
+        setServicios(lista);
+        if (lista.length > 0) setBonoServicioId(String(lista[0].id));
+      })
+      .catch(() => {});
   }, []);
 
   function cargarClientes() {
@@ -172,11 +181,19 @@ export default function ClientesAdmin() {
 
   async function darBono(e) {
     e.preventDefault();
+    const serv = servicios.find((s) => String(s.id) === bonoServicioId);
+    if (!serv) return;
+    const nombreGenerado = `Bono ${sesionesBono}x ${serv.nombre}`;
     await apiFetch(`/clientes/${seleccionado.id}/bonos`, {
       method: 'POST',
-      body: JSON.stringify({ nombre_bono: nombreBono, sesiones_totales: Number(sesionesBono) })
+      body: JSON.stringify({
+        servicio_id: serv.id,
+        nombre_bono: nombreGenerado,
+        sesiones_totales: Number(sesionesBono)
+      })
     });
-    setMensaje('Bono asignado al cliente.');
+    setMensaje(`${nombreGenerado} asignado al cliente.`);
+    verFichas(seleccionado);
   }
 
   async function crearTarjetaRegaloAdmin(e) {
@@ -206,42 +223,103 @@ export default function ClientesAdmin() {
     }
   }
 
+  const terminoBusqueda = busquedaCliente.trim().toLowerCase();
+  const clientesVisibles = terminoBusqueda
+    ? clientes.filter((c) =>
+        `${c.nombre} ${c.apellidos}`.toLowerCase().includes(terminoBusqueda) ||
+        (c.telefono || '').includes(terminoBusqueda)
+      )
+    : mostrarTodosClientes
+      ? clientes
+      : [];
+
   return (
     <div className="grid-2" style={{ gap: '2rem', alignItems: 'start' }}>
       <div>
-        <h2 style={{ fontSize: '1.7rem', marginBottom: '1rem' }}>Listado de Clientes</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {clientes.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => verFichas(c)}
-              className="tarjeta"
+        <h2 style={{ fontSize: '1.7rem', marginBottom: '1rem' }}>Buscar Cliente</h2>
+
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+            <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-suave)' }} />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o teléfono..."
+              value={busquedaCliente}
+              onChange={(e) => setBusquedaCliente(e.target.value)}
               style={{
-                padding: '1rem', cursor: 'pointer',
-                borderColor: seleccionado?.id === c.id ? 'var(--terracota)' : undefined
+                width: '100%', padding: '0.6rem 0.9rem 0.6rem 2.2rem',
+                borderRadius: 10, border: '1px solid var(--borde-suave)', background: '#fff'
               }}
-            >
-              <strong>{c.nombre} {c.apellidos}</strong> {!c.activo && <small style={{ color: 'var(--error)' }}>(Inactivo)</small>}
-              <div style={{ fontSize: '0.85rem', color: 'var(--texto-suave)' }}>
-                {c.email} · {c.total_citas} citas
-              </div>
-            </div>
-          ))}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-suave"
+            onClick={() => {
+              setBusquedaCliente('');
+              setMostrarTodosClientes(!mostrarTodosClientes);
+            }}
+          >
+            {mostrarTodosClientes && !terminoBusqueda ? 'Ocultar lista' : `Todos los clientes (${clientes.length})`}
+          </button>
         </div>
+
+        {clientesVisibles.length === 0 ? (
+          <p style={{ color: 'var(--texto-suave)', fontSize: '0.9rem' }}>
+            {terminoBusqueda
+              ? 'No se encontró ningún cliente con ese nombre o teléfono.'
+              : 'Escribe un nombre o teléfono para buscar, o pulsa "Todos los clientes".'}
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {clientesVisibles.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => verFichas(c)}
+                className="tarjeta"
+                style={{
+                  padding: '1rem', cursor: 'pointer',
+                  borderColor: seleccionado?.id === c.id ? 'var(--terracota)' : undefined
+                }}
+              >
+                <strong>{c.nombre} {c.apellidos}</strong> {!c.activo && <small style={{ color: 'var(--error)' }}>(Inactivo)</small>}
+                <div style={{ fontSize: '0.85rem', color: 'var(--texto-suave)' }}>
+                  {c.telefono || c.email} · {c.total_citas} citas
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--salvia)' }}>
+                  Cliente desde: {c.fecha_registro?.slice(0, 10)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
         {!seleccionado ? (
-          <p style={{ color: 'var(--texto-suave)' }}>Selecciona un cliente para ver su ficha privada y asignar bonos.</p>
+          <p style={{ color: 'var(--texto-suave)' }}>Selecciona un cliente para abrir su ficha y desplegables.</p>
         ) : (
           <div>
-            <h2 style={{ fontSize: '1.7rem', marginBottom: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.7rem', marginBottom: '0.25rem' }}>
               Ficha de {seleccionado.nombre} {seleccionado.apellidos}
             </h2>
+            <p style={{ fontSize: '0.84rem', color: 'var(--salvia)', marginBottom: '0.9rem' }}>
+              Registrado el {seleccionado.fecha_registro?.slice(0, 10)} · {seleccionado.telefono || 'Sin teléfono'} · {seleccionado.email}
+            </p>
             {error && <div className="alerta-error">{error}</div>}
             {mensaje && <div className="alerta-exito">{mensaje}</div>}
 
-            {/* Reservar cita presencial para este cliente (conectada con Agenda y Bonos) */}
+            {/* Desplegable 1: Reservar cita presencial */}
+            <button
+              type="button"
+              className="btn btn-suave"
+              style={{ width: '100%', justifyContent: 'space-between', marginBottom: '0.6rem' }}
+              onClick={() => setSeccionAbierta(seccionAbierta === 'reservar' ? '' : 'reservar')}
+            >
+              <span>📅 Reservar cita presencial para {seleccionado.nombre}</span>
+              <ChevronDown size={16} />
+            </button>
+            {seccionAbierta === 'reservar' && (
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -306,8 +384,19 @@ export default function ClientesAdmin() {
                 Confirmar cita para el cliente
               </button>
             </form>
+            )}
 
-            {/* Editar o eliminar cliente */}
+            {/* Desplegable 2: Datos del cliente */}
+            <button
+              type="button"
+              className="btn btn-suave"
+              style={{ width: '100%', justifyContent: 'space-between', marginBottom: '0.6rem' }}
+              onClick={() => setSeccionAbierta(seccionAbierta === 'datos' ? '' : 'datos')}
+            >
+              <span>👤 Datos del cliente (Editar / Eliminar)</span>
+              <ChevronDown size={16} />
+            </button>
+            {seccionAbierta === 'datos' && (
             <form onSubmit={guardarDatosCliente} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
               <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Datos del cliente</h3>
               <div className="grid-2">
@@ -343,8 +432,21 @@ export default function ClientesAdmin() {
                 </div>
               </div>
             </form>
+            )}
 
-            <form onSubmit={guardarFicha} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+            {/* Desplegable 3: Notas privadas e Historial */}
+            <button
+              type="button"
+              className="btn btn-suave"
+              style={{ width: '100%', justifyContent: 'space-between', marginBottom: '0.6rem' }}
+              onClick={() => setSeccionAbierta(seccionAbierta === 'notas' ? '' : 'notas')}
+            >
+              <span>📝 Notas privadas e Historial ({fichas.length})</span>
+              <ChevronDown size={16} />
+            </button>
+            {seccionAbierta === 'notas' && (
+            <div>
+            <form onSubmit={guardarFicha} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>
                 {editandoFichaId ? 'Editar nota de evolución privada' : 'Nueva nota de evolución privada'}
               </h3>
@@ -372,7 +474,39 @@ export default function ClientesAdmin() {
               </div>
             </form>
 
-            <form onSubmit={darBono} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+            {fichas.map((f) => (
+              <div key={f.id} className="tarjeta" style={{ padding: '1rem', marginBottom: '0.6rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                  <small style={{ color: 'var(--salvia)' }}>{f.creado_en?.slice(0, 10)}</small>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button type="button" className="btn btn-salvia" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }} onClick={() => cargarFichaParaEditar(f)}>
+                      Editar
+                    </button>
+                    <button type="button" className="btn btn-contorno" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }} onClick={() => eliminarFicha(f.id)}>
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+                {f.contraindicaciones && <p style={{ color: 'var(--error)', fontSize: '0.88rem' }}><strong>Alerta:</strong> {f.contraindicaciones}</p>}
+                {f.motivo_consulta && <p style={{ fontSize: '0.9rem' }}><strong>Motivo:</strong> {f.motivo_consulta}</p>}
+                {f.notas_privadas_terapeuta && <p style={{ fontSize: '0.9rem' }}><strong>Evolución:</strong> {f.notas_privadas_terapeuta}</p>}
+              </div>
+            ))}
+            </div>
+            )}
+
+            {/* Desplegable 4: Bonos de sesiones */}
+            <button
+              type="button"
+              className="btn btn-suave"
+              style={{ width: '100%', justifyContent: 'space-between', marginBottom: '0.6rem' }}
+              onClick={() => setSeccionAbierta(seccionAbierta === 'bonos' ? '' : 'bonos')}
+            >
+              <span>🎟️ Bonos de sesiones ({bonosCliente.length})</span>
+              <ChevronDown size={16} />
+            </button>
+            {seccionAbierta === 'bonos' && (
+            <form onSubmit={darBono} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Bonos de Sesiones del Cliente</h3>
               {bonosCliente.length > 0 && (
                 <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -430,23 +564,71 @@ export default function ClientesAdmin() {
               )}
               <div className="grid-2">
                 <div className="campo">
-                  <label>Nombre del bono</label>
-                  <input type="text" required value={nombreBono} onChange={(e) => setNombreBono(e.target.value)} />
+                  <label>Terapia del bono</label>
+                  <select value={bonoServicioId} onChange={(e) => setBonoServicioId(e.target.value)}>
+                    {servicios.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombre} ({Number(s.precio).toFixed(2)} € / sesión)
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="campo">
-                  <label>Sesiones</label>
-                  <input type="number" min="1" required value={sesionesBono} onChange={(e) => setSesionesBono(e.target.value)} />
+                  <label>Pack de sesiones</label>
+                  <select value={sesionesBono} onChange={(e) => setSesionesBono(Number(e.target.value))}>
+                    <option value={3}>3 sesiones (5% dto.)</option>
+                    <option value={5}>5 sesiones (10% dto.)</option>
+                    <option value={10}>10 sesiones (15% dto.)</option>
+                  </select>
                 </div>
               </div>
+              {(() => {
+                const serv = servicios.find((s) => String(s.id) === bonoServicioId);
+                if (!serv) return null;
+                const dto = sesionesBono === 10 ? 0.15 : sesionesBono === 5 ? 0.10 : 0.05;
+                const base = Number(serv.precio) * sesionesBono;
+                const final = (base * (1 - dto)).toFixed(2);
+                return (
+                  <div style={{ marginBottom: '0.9rem', padding: '0.65rem 0.9rem', borderRadius: 8, background: '#fdf8f2', border: '1px solid var(--borde-suave)', fontSize: '0.9rem' }}>
+                    <span style={{ textDecoration: 'line-through', color: 'var(--texto-suave)', marginRight: '0.5rem' }}>{base.toFixed(2)} €</span>
+                    <strong style={{ color: 'var(--terracota)' }}>{final} €</strong>
+                    <small style={{ marginLeft: '0.5rem', color: 'var(--salvia)', fontWeight: 600 }}>
+                      (Ahorra {(base - Number(final)).toFixed(2)} €)
+                    </small>
+                  </div>
+                );
+              })()}
               <button type="submit" className="btn btn-salvia">Asignar bono</button>
             </form>
+            )}
 
-            <form onSubmit={crearTarjetaRegaloAdmin} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+            {/* Desplegable 5: Tarjeta Regalo */}
+            <button
+              type="button"
+              className="btn btn-suave"
+              style={{ width: '100%', justifyContent: 'space-between', marginBottom: '0.6rem' }}
+              onClick={() => setSeccionAbierta(seccionAbierta === 'regalo' ? '' : 'regalo')}
+            >
+              <span>🎁 Crear o canjear Tarjeta Regalo</span>
+              <ChevronDown size={16} />
+            </button>
+            {seccionAbierta === 'regalo' && (
+            <form onSubmit={crearTarjetaRegaloAdmin} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Crear Tarjeta Regalo (con código sin precio visible)</h3>
               <div className="grid-2">
                 <div className="campo">
                   <label>Masaje / Terapia incluida</label>
-                  <select value={regaloServicioId} onChange={(e) => setRegaloServicioId(e.target.value)}>
+                  <select
+                    value={regaloServicioId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRegaloServicioId(val);
+                      if (val) {
+                        const s = servicios.find((x) => String(x.id) === val);
+                        if (s) setRegaloPrecio(String(s.precio));
+                      }
+                    }}
+                  >
                     <option value="">A elección del destinatario (según valor)</option>
                     {servicios.map((s) => (
                       <option key={s.id} value={s.id}>{s.nombre} ({Number(s.precio).toFixed(2)} €)</option>
@@ -540,26 +722,7 @@ export default function ClientesAdmin() {
                 </button>
               </div>
             </form>
-
-            <h3 style={{ fontSize: '1.3rem', marginBottom: '0.6rem' }}>Historial privado</h3>
-            {fichas.map((f) => (
-              <div key={f.id} className="tarjeta" style={{ padding: '1rem', marginBottom: '0.6rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <small style={{ color: 'var(--salvia)' }}>{f.creado_en?.slice(0, 10)}</small>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button type="button" className="btn btn-salvia" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }} onClick={() => cargarFichaParaEditar(f)}>
-                      Editar
-                    </button>
-                    <button type="button" className="btn btn-contorno" style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }} onClick={() => eliminarFicha(f.id)}>
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-                {f.contraindicaciones && <p style={{ color: 'var(--error)', fontSize: '0.88rem' }}><strong>Alerta:</strong> {f.contraindicaciones}</p>}
-                {f.motivo_consulta && <p style={{ fontSize: '0.9rem' }}><strong>Motivo:</strong> {f.motivo_consulta}</p>}
-                {f.notas_privadas_terapeuta && <p style={{ fontSize: '0.9rem' }}><strong>Evolución:</strong> {f.notas_privadas_terapeuta}</p>}
-              </div>
-            ))}
+            )}
           </div>
         )}
       </div>

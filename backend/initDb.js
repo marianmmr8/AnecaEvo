@@ -57,15 +57,17 @@ async function inicializar() {
     );
 
     // Creamos cuenta Admin demo y Cliente demo si no existen
-    const [admins] = await conexion.query("SELECT id FROM `aneca evo`.usuarios WHERE email = 'admin@anecaevo.com'");
+    const [admins] = await conexion.query("SELECT id FROM `aneca evo`.usuarios WHERE email IN ('anecaevo@gmail.com', 'admin@anecaevo.com')");
     if (admins.length === 0) {
       const hashAdmin = await bcrypt.hash('Admin123!', 10);
       await conexion.query(
         `INSERT INTO \`aneca evo\`.usuarios (id, nombre, apellidos, email, password_hash, telefono, rol)
-         VALUES (?, 'Elena', 'Aneca (Terapeuta)', 'admin@anecaevo.com', ?, '600111222', 'admin')`,
+         VALUES (?, 'Elena', 'Aneca (Terapeuta)', 'anecaevo@gmail.com', ?, '600111222', 'admin')`,
         [randomUUID(), hashAdmin]
       );
-      console.log('✅ Cuenta Admin creada: admin@anecaevo.com / Admin123!');
+      console.log('✅ Cuenta Admin creada: anecaevo@gmail.com / Admin123!');
+    } else {
+      await conexion.query("UPDATE `aneca evo`.usuarios SET email = 'anecaevo@gmail.com' WHERE email = 'admin@anecaevo.com'");
     }
 
     const [clientes] = await conexion.query("SELECT id FROM `aneca evo`.usuarios WHERE email = 'cliente@anecaevo.com'");

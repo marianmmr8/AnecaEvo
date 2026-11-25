@@ -3,6 +3,8 @@
 // ============================================================================
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
@@ -21,10 +23,20 @@ const tarjetasRoutes = require('./routes/tarjetasRoutes');
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
 
-// Middlewares globales
-app.use(cors());                                                   // Permite peticiones desde el frontend en Vite (puerto 5173)
-app.use(express.json({ limit: '10mb' }));                          // Permite recibir JSON y fotos en base64 de hasta 10MB
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Sirve las fotos subidas de productos
+// Middlewares globales de seguridad
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } })); // Protege cabeceras HTTP permitiendo fotos de /uploads
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));              // En producción restringe al dominio real en FRONTEND_URL
+app.use(express.json({ limit: '10mb' }));                                 // Permite recibir JSON y fotos en base64 de hasta 10MB
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));      // Sirve las fotos subidas de productos
+
+// Límite de intentos en login y recuperación para frenar ataques de fuerza bruta
+const limitadorAuth = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { error: 'Demasiados intentos seguidos. Espera 15 minutos e inténtalo de nuevo.' }
+});
+app.use('/api/auth/login', limitadorAuth);
+app.use('/api/auth/olvide-password', limitadorAuth);
 
 // Ruta de comprobación de salud del servidor y base de datos
 app.get('/api/health', async (_req, res) => {
