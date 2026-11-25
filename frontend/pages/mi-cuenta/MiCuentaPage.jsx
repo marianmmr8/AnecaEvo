@@ -349,11 +349,23 @@ export default function MiCuentaPage() {
             </h2>
             <div className="grid-3">
               {bonos.map((b) => (
-                <div key={b.id} className="tarjeta" style={{ padding: '1.2rem' }}>
-                  <strong>{b.nombre_bono}</strong>
-                  <p style={{ color: 'var(--terracota)', fontSize: '1.15rem', fontWeight: 700, marginTop: '0.3rem' }}>
-                    {b.sesiones_restantes} / {b.sesiones_totales} sesiones disponibles
-                  </p>
+                <div key={b.id} className="tarjeta" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '0.6rem' }}>
+                  <div>
+                    <strong>{b.nombre_bono}</strong>
+                    <p style={{ color: 'var(--terracota)', fontSize: '1.15rem', fontWeight: 700, marginTop: '0.3rem' }}>
+                      {b.sesiones_restantes} / {b.sesiones_totales} sesiones disponibles
+                    </p>
+                  </div>
+                  {b.sesiones_restantes > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-primario"
+                      style={{ padding: '0.45rem 0.9rem', fontSize: '0.84rem' }}
+                      onClick={() => navigate('/reservar', { state: { bonoPreseleccionado: b } })}
+                    >
+                      Reservar con este bono
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

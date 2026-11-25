@@ -256,11 +256,27 @@ async function descontarSesionBono(req, res) {
   }
 }
 
+/**
+ * PATCH /api/clientes/bonos/:bonoId/sumar - Devuelve 1 sesión al bono por excepción del admin (Solo Admin)
+ */
+async function sumarSesionBono(req, res) {
+  try {
+    await pool.query(
+      'UPDATE bonos_clientes SET sesiones_restantes = LEAST(sesiones_totales, sesiones_restantes + 1) WHERE id = ?',
+      [req.params.bonoId]
+    );
+    return res.json({ mensaje: 'Se ha devuelto 1 sesión al bono.' });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo devolver la sesión al bono.' });
+  }
+}
+
 module.exports = {
   misBonos,
   comprarBono,
   obtenerBonosCliente,
   descontarSesionBono,
+  sumarSesionBono,
   listarClientes,
   actualizarCliente,
   eliminarCliente,

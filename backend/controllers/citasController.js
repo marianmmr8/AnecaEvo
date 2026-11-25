@@ -162,8 +162,11 @@ async function crearCita(req, res) {
   try {
     const {
       servicio_id, fecha, hora_inicio, modalidad, notas_cliente,
-      motivo_consulta, contraindicaciones, bono_id, codigo_regalo, metodo_pago, tipo_pago
+      motivo_consulta, contraindicaciones, bono_id, codigo_regalo, metodo_pago, tipo_pago, cliente_id
     } = req.body;
+
+    // Si es admin reservando en clínica para un cliente concreto, usamos cliente_id
+    const usuarioObjetivoId = (req.usuario.rol === 'admin' && cliente_id) ? cliente_id : req.usuario.id;
 
     if (!servicio_id || !fecha || !hora_inicio || !modalidad) {
       return res.status(400).json({ error: 'Faltan datos obligatorios para reservar la cita.' });
@@ -211,7 +214,7 @@ async function crearCita(req, res) {
       }
       await conexion.query(
         "UPDATE tarjetas_regalo SET estado = 'canjeada', canjeada_por_usuario_id = ? WHERE id = ?",
-        [req.usuario.id, tarjeta.id]
+        [usuarioObjetivoId, tarjeta.id]
       );
       const ahora = new Date();
       const fechaCanje = `${ahora.toLocaleDateString('es-ES')} ${ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
@@ -220,7 +223,7 @@ async function crearCita(req, res) {
     } else if (bono_id) {
       const [bonos] = await conexion.query(
         'SELECT * FROM bonos_clientes WHERE id = ? AND usuario_id = ? AND activo = TRUE AND sesiones_restantes > 0 FOR UPDATE',
-        [bono_id, req.usuario.id]
+        [bono_id, usuarioObjetivoId]
       );
       if (bonos.length === 0) {
         await conexion.rollback();
@@ -256,7 +259,7 @@ async function crearCita(req, res) {
     await conexion.query(
       `INSERT INTO citas (id, usuario_id, servicio_id, fecha, hora_inicio, hora_fin, modalidad, estado, pago_estado, origen_pago, notas_cliente)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [citaId, req.usuario.id, servicio.id, fecha, horaInicioSql, horaFinSql, modalidad, estadoCita, pagoEstado, origenPago, notas_cliente || null]
+      [citaId, usuarioObjetivoId, servicio.id, fecha, horaInicioSql, horaFinSql, modalidad, estadoCita, pagoEstado, origenPago, notas_cliente || null]
     );
 
     // Si el cliente rellenó el cuestionario previo (Anamnesis: alergias, embarazo, lesiones...), lo guardamos en fichas_clientes
@@ -264,7 +267,7 @@ async function crearCita(req, res) {
       await conexion.query(
         `INSERT INTO fichas_clientes (id, usuario_id, cita_id, motivo_consulta, contraindicaciones)
          VALUES (?, ?, ?, ?, ?)`,
-        [randomUUID(), req.usuario.id, citaId, motivo_consulta || null, contraindicaciones || null]
+        [randomUUID(), usuarioObjetivoId, citaId, motivo_consulta || null, contraindicaciones || null]
       );
     }
 
@@ -360,7 +363,7 @@ async function listarTodasCitas(req, res) {
        FROM citas c
        JOIN servicios s ON c.servicio_id = s.id
        JOIN usuarios u ON c.usuario_id = u.id
-       ORDER BY c.fecha DESC, c.hora_inicio ASC`
+       ORDER BY c.fecha ASC, c.hora_inicio ASC`
     );
     return res.json({ citas });
   } catch (error) {

@@ -8,6 +8,7 @@ const {
   comprarBono,
   obtenerBonosCliente,
   descontarSesionBono,
+  sumarSesionBono,
   listarClientes,
   actualizarCliente,
   eliminarCliente,
@@ -30,6 +31,7 @@ router.put('/fichas/:fichaId', verificarToken, soloAdmin, actualizarFichaCliente
 router.delete('/fichas/:fichaId', verificarToken, soloAdmin, eliminarFichaCliente); // Admin: eliminar ficha privada
 router.get('/:id/bonos', verificarToken, soloAdmin, obtenerBonosCliente);        // Admin: ver bonos del cliente
 router.patch('/bonos/:bonoId/descontar', verificarToken, soloAdmin, descontarSesionBono); // Admin: descontar 1 sesión
+router.patch('/bonos/:bonoId/sumar', verificarToken, soloAdmin, sumarSesionBono);         // Admin: devolver 1 sesión
 router.post('/:id/bonos', verificarToken, soloAdmin, asignarBono);               // Admin: asignar bono/tarjeta regalo
 
 module.exports = router;

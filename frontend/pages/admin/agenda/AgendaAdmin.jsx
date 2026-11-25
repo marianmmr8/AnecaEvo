@@ -30,7 +30,9 @@ export default function AgendaAdmin() {
   const [citas, setCitas] = useState([]);
   const [bloqueos, setBloqueos] = useState([]);
   const [fechaInicio, setFechaInicio] = useState('');
+  const [horaInicio, setHoraInicio] = useState('00:00');
   const [fechaFin, setFechaFin] = useState('');
+  const [horaFin, setHoraFin] = useState('23:59');
   const [motivo, setMotivo] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
@@ -76,15 +78,17 @@ export default function AgendaAdmin() {
     await apiFetch('/citas/bloqueos', {
       method: 'POST',
       body: JSON.stringify({
-        fecha_inicio: `${fechaInicio} 00:00:00`,
-        fecha_fin: `${fechaFin || fechaInicio} 23:59:59`,
+        fecha_inicio: `${fechaInicio} ${horaInicio}:00`,
+        fecha_fin: `${fechaFin || fechaInicio} ${horaFin}:00`,
         motivo
       })
     });
     setFechaInicio('');
+    setHoraInicio('00:00');
     setFechaFin('');
+    setHoraFin('23:59');
     setMotivo('');
-    setMensaje('Día/rango bloqueado en la agenda.');
+    setMensaje('Bloqueo añadido a la agenda.');
     cargarTodo();
   }
 
@@ -340,20 +344,32 @@ export default function AgendaAdmin() {
         <div>
           <h2 style={{ fontSize: '1.7rem', marginBottom: '1rem' }}>Bloquear Festivos / Cierres</h2>
           <form onSubmit={agregarBloqueo} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
-            <div className="campo">
-              <label>Fecha inicio</label>
-              <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+            <div className="grid-2">
+              <div className="campo">
+                <label>Fecha inicio</label>
+                <input type="date" required value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label>Hora inicio</label>
+                <input type="time" required value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
+              </div>
             </div>
-            <div className="campo">
-              <label>Fecha fin (opcional)</label>
-              <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+            <div className="grid-2">
+              <div className="campo">
+                <label>Fecha fin (opcional)</label>
+                <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label>Hora fin</label>
+                <input type="time" required value={horaFin} onChange={(e) => setHoraFin(e.target.value)} />
+              </div>
             </div>
             <div className="campo">
               <label>Motivo</label>
-              <input type="text" placeholder="Ej: Festivo nacional / Retiro" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+              <input type="text" placeholder="Ej: Nochebuena (tarde cerrada) / Festivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
             </div>
             <button type="submit" className="btn btn-primario" style={{ width: '100%' }}>
-              Bloquear fechas
+              Bloquear fechas / horas
             </button>
           </form>
 
@@ -362,7 +378,7 @@ export default function AgendaAdmin() {
               <div>
                 <strong style={{ fontSize: '0.9rem' }}>{b.motivo}</strong>
                 <div style={{ fontSize: '0.8rem', color: 'var(--texto-suave)' }}>
-                  {b.fecha_inicio.slice(0, 10)} → {b.fecha_fin.slice(0, 10)}
+                  {b.fecha_inicio.slice(0, 16)} → {b.fecha_fin.slice(0, 16)}
                 </div>
               </div>
               <button type="button" className="btn btn-suave" style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }} onClick={() => borrarBloqueo(b.id)}>

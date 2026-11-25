@@ -1,8 +1,8 @@
 // ============================================================================
 // PANEL PRIVADO DE ADMINISTRACIÓN (Solo accesible si usuario.rol === 'admin')
 // ============================================================================
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AgendaAdmin from './agenda/AgendaAdmin';
 import ClientesAdmin from './clientes/ClientesAdmin';
@@ -11,7 +11,15 @@ import PedidosAdmin from './pedidos/PedidosAdmin';
 
 export default function AdminPanelPage() {
   const { usuario } = useAuth();
-  const [pestana, setPestana] = useState('agenda');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabUrl = searchParams.get('tab');
+  const [pestana, setPestana] = useState(tabUrl || 'agenda');
+
+  useEffect(() => {
+    if (tabUrl && ['agenda', 'clientes', 'inventario', 'pedidos'].includes(tabUrl)) {
+      setPestana(tabUrl);
+    }
+  }, [tabUrl]);
 
   // Protección de ruta en frontend: si no es admin, redirige a mi-cuenta
   if (!usuario || usuario.rol !== 'admin') {

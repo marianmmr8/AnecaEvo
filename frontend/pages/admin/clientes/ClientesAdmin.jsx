@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Download, Mail, MessageCircle } from 'lucide-react';
 import { apiFetch } from '../../../services/api';
 import { descargarTarjetaRegaloPDF } from '../../../services/tarjetaPdf';
+import CalendarioCitas from '../../../components/reservas/CalendarioCitas';
 
 export default function ClientesAdmin() {
   const [clientes, setClientes] = useState([]);
@@ -25,6 +26,10 @@ export default function ClientesAdmin() {
   const [tarjetaGeneradaAdmin, setTarjetaGeneradaAdmin] = useState(null);
   const [bonosCliente, setBonosCliente] = useState([]);
   const [codigoCanjearAdmin, setCodigoCanjearAdmin] = useState('');
+  const [reservaServId, setReservaServId] = useState('');
+  const [reservaFecha, setReservaFecha] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reservaHora, setReservaHora] = useState('');
+  const [reservaBonoId, setReservaBonoId] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
@@ -236,6 +241,72 @@ export default function ClientesAdmin() {
             {error && <div className="alerta-error">{error}</div>}
             {mensaje && <div className="alerta-exito">{mensaje}</div>}
 
+            {/* Reservar cita presencial para este cliente (conectada con Agenda y Bonos) */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setError('');
+                setMensaje('');
+                try {
+                  const res = await apiFetch('/citas', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      cliente_id: seleccionado.id,
+                      servicio_id: Number(reservaServId),
+                      fecha: reservaFecha,
+                      hora_inicio: reservaHora,
+                      modalidad: 'presencial',
+                      bono_id: reservaBonoId || null,
+                      tipo_pago: reservaBonoId ? 'bono' : 'efectivo'
+                    })
+                  });
+                  setMensaje(res.mensaje);
+                  setReservaHora('');
+                  verFichas(seleccionado);
+                } catch (err) {
+                  setError(err.message);
+                }
+              }}
+              className="tarjeta"
+              style={{ padding: '1.25rem', marginBottom: '1.5rem', background: '#fdf8f2' }}
+            >
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Reservar cita presencial para {seleccionado.nombre}</h3>
+              <div className="grid-2">
+                <div className="campo">
+                  <label>Terapia</label>
+                  <select required value={reservaServId} onChange={(e) => setReservaServId(e.target.value)}>
+                    <option value="">Elige una terapia...</option>
+                    {servicios.map((s) => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="campo">
+                  <label>Usar bono del cliente (opcional)</label>
+                  <select value={reservaBonoId} onChange={(e) => setReservaBonoId(e.target.value)}>
+                    <option value="">No, pagar en clínica</option>
+                    {bonosCliente.filter((b) => b.sesiones_restantes > 0).map((b) => (
+                      <option key={b.id} value={b.id}>{b.nombre_bono} ({b.sesiones_restantes} rest.)</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {reservaServId && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <CalendarioCitas
+                    servicio={servicios.find((s) => String(s.id) === reservaServId)}
+                    fecha={reservaFecha}
+                    setFecha={setReservaFecha}
+                    horaSeleccionada={reservaHora}
+                    setHoraSeleccionada={setReservaHora}
+                  />
+                </div>
+              )}
+              <button type="submit" className="btn btn-primario" disabled={!reservaServId || !reservaHora}>
+                Confirmar cita para el cliente
+              </button>
+            </form>
+
             {/* Editar o eliminar cliente */}
             <form onSubmit={guardarDatosCliente} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
               <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Datos del cliente</h3>
@@ -313,25 +384,46 @@ export default function ClientesAdmin() {
                           Quedan <strong>{b.sesiones_restantes}</strong> de {b.sesiones_totales} sesiones
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn-primario"
-                        style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}
-                        disabled={b.sesiones_restantes <= 0}
-                        onClick={async () => {
-                          setError('');
-                          setMensaje('');
-                          try {
-                            const res = await apiFetch(`/clientes/bonos/${b.id}/descontar`, { method: 'PATCH' });
-                            setMensaje(res.mensaje);
-                            verFichas(seleccionado);
-                          } catch (err) {
-                            setError(err.message);
-                          }
-                        }}
-                      >
-                        -1 sesión (cita hecha)
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-primario"
+                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}
+                          disabled={b.sesiones_restantes <= 0}
+                          onClick={async () => {
+                            setError('');
+                            setMensaje('');
+                            try {
+                              const res = await apiFetch(`/clientes/bonos/${b.id}/descontar`, { method: 'PATCH' });
+                              setMensaje(res.mensaje);
+                              verFichas(seleccionado);
+                            } catch (err) {
+                              setError(err.message);
+                            }
+                          }}
+                        >
+                          -1 sesión
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-salvia"
+                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}
+                          disabled={b.sesiones_restantes >= b.sesiones_totales}
+                          onClick={async () => {
+                            setError('');
+                            setMensaje('');
+                            try {
+                              const res = await apiFetch(`/clientes/bonos/${b.id}/sumar`, { method: 'PATCH' });
+                              setMensaje(res.mensaje);
+                              verFichas(seleccionado);
+                            } catch (err) {
+                              setError(err.message);
+                            }
+                          }}
+                        >
+                          +1 sesión (devolver)
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

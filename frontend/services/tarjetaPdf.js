@@ -135,7 +135,7 @@ export function descargarTarjetaRegaloPDF(tarjeta) {
           <div class="contenido">
             <div>
               <div class="marca">Aneca Evo</div>
-              <span class="etiqueta">Tarjeta Regalo · Sin precio visible</span>
+              <span class="etiqueta">Tarjeta Regalo</span>
               <h1>Para ${destinatario}</h1>
               <p class="descripcion">${descripcion}</p>
               <div class="dedicatoria">“${dedicatoria}”</div>

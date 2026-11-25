@@ -29,7 +29,7 @@ export default function ReservarPage() {
   const [motivoConsulta, setMotivoConsulta] = useState('');
   const [contraindicaciones, setContraindicaciones] = useState('');
   const [notasCliente, setNotasCliente] = useState('');
-  const [bonoId, setBonoId] = useState('');
+  const [bonoId, setBonoId] = useState(() => location.state?.bonoPreseleccionado?.id || '');
   const [codigoRegaloInput, setCodigoRegaloInput] = useState('');
   const [tarjetaRegalo, setTarjetaRegalo] = useState(() => location.state?.tarjetaRegalo || null);
   const [tipoPago, setTipoPago] = useState('senal');
@@ -45,7 +45,7 @@ export default function ReservarPage() {
       .then((res) => {
         const lista = res.servicios || [];
         setServicios(lista);
-        const preId = Number(searchParams.get('servicio'));
+        const preId = Number(searchParams.get('servicio')) || Number(location.state?.bonoPreseleccionado?.servicio_id);
         if (preId) {
           const encontrado = lista.find((s) => s.id === preId);
           if (encontrado) {

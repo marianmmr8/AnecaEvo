@@ -2,7 +2,7 @@
 // BARRA DE NAVEGACIÓN PRINCIPAL CON DESPLEGABLES (UX Tranquila y Clara)
 // ============================================================================
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, ShoppingBag, User, Menu, X, Sparkles, Shield, LogOut, ArrowLeft, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -13,6 +13,7 @@ export default function Navbar() {
   const { totalUnidades, setAbierto } = useCart();
   const [menuMovil, setMenuMovil] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   // Detectamos si estamos dentro del Panel de Administración para mostrar una cabecera limpia
   const enPanelAdmin = pathname.startsWith('/admin');
@@ -28,15 +29,24 @@ export default function Navbar() {
       const lista = [];
       (resP.pedidos || []).forEach((p) => {
         if (p.estado === 'pagado') {
-          lista.push(`📦 Pedido #${p.id.slice(0, 8)} pendiente de confirmar (${Number(p.total).toFixed(2)} €)`);
+          lista.push({
+            texto: `📦 Pedido #${p.id.slice(0, 8)} pendiente de confirmar (${Number(p.total).toFixed(2)} €)`,
+            ruta: '/admin?tab=pedidos'
+          });
         }
         if (p.nota_cliente_cambio) {
-          lista.push(`⚠️ Pedido #${p.id.slice(0, 8)}: ${p.nota_cliente_cambio}`);
+          lista.push({
+            texto: `⚠️ Pedido #${p.id.slice(0, 8)}: ${p.nota_cliente_cambio}`,
+            ruta: '/admin?tab=pedidos'
+          });
         }
       });
       (resC.citas || []).forEach((c) => {
         if (c.estado === 'confirmada' || c.estado === 'pendiente') {
-          lista.push(`📅 Cita: ${c.servicio_nombre} (${c.fecha} ${c.hora_inicio.slice(0, 5)})`);
+          lista.push({
+            texto: `📅 Cita: ${c.servicio_nombre} (${c.fecha} ${c.hora_inicio.slice(0, 5)})`,
+            ruta: '/admin?tab=agenda'
+          });
         }
       });
       setAlertasAdmin(lista.slice(0, 10));
@@ -85,7 +95,25 @@ export default function Navbar() {
                   <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.82rem' }}>
                     {alertasAdmin.map((a, i) => (
                       <li key={i} style={{ paddingBottom: '0.4rem', borderBottom: '1px solid var(--borde-suave)' }}>
-                        {a}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerAlertas(false);
+                            navigate(a.ruta);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            color: 'var(--texto-principal)',
+                            fontFamily: 'inherit',
+                            fontSize: 'inherit',
+                            width: '100%'
+                          }}
+                        >
+                          {a.texto}
+                        </button>
                       </li>
                     ))}
                   </ul>
