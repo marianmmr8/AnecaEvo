@@ -22,6 +22,19 @@ export default function InventarioAdmin() {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState('');
 
+  // Formulario de servicios (añadir o editar servicio con foto, precio y descripción)
+  const [editandoServId, setEditandoServId] = useState(null);
+  const [nombreServ, setNombreServ] = useState('');
+  const [catServ, setCatServ] = useState('masajes');
+  const [descServ, setDescServ] = useState('');
+  const [duracionServ, setDuracionServ] = useState('60');
+  const [margenServ, setMargenServ] = useState('15');
+  const [precioServ, setPrecioServ] = useState('');
+  const [modalidadServ, setModalidadServ] = useState('presencial');
+  const [imgServExistente, setImgServExistente] = useState('');
+  const [archivoFotoServ, setArchivoFotoServ] = useState(null);
+  const [previewFotoServ, setPreviewFotoServ] = useState('');
+
   useEffect(() => {
     cargar();
   }, []);
@@ -137,6 +150,80 @@ export default function InventarioAdmin() {
       cargar();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  function limpiarFormularioServicio() {
+    setEditandoServId(null);
+    setNombreServ('');
+    setCatServ('masajes');
+    setDescServ('');
+    setDuracionServ('60');
+    setMargenServ('15');
+    setPrecioServ('');
+    setModalidadServ('presencial');
+    setImgServExistente('');
+    setArchivoFotoServ(null);
+    setPreviewFotoServ('');
+  }
+
+  function cargarServicioParaEditar(serv) {
+    setEditandoServId(serv.id);
+    setNombreServ(serv.nombre || '');
+    setCatServ(serv.categoria || 'masajes');
+    setDescServ(serv.descripcion || '');
+    setDuracionServ(String(serv.duracion_minutos ?? '60'));
+    setMargenServ(String(serv.margen_descanso_minutos ?? '15'));
+    setPrecioServ(String(serv.precio ?? ''));
+    setModalidadServ(serv.modalidad || 'presencial');
+    setImgServExistente(serv.imagen_url || '');
+    setArchivoFotoServ(null);
+    setPreviewFotoServ(serv.imagen_url || '');
+    setError('');
+    setMensaje('');
+  }
+
+  async function guardarServicio(e) {
+    e.preventDefault();
+    setError('');
+    setMensaje('');
+    setSubiendo(true);
+    try {
+      let imagenUrlFinal = imgServExistente || null;
+      if (archivoFotoServ) {
+        const datosBase64 = await leerArchivoBase64(archivoFotoServ);
+        const resImg = await apiFetch('/productos/subir-imagen', {
+          method: 'POST',
+          body: JSON.stringify({ datosBase64 })
+        });
+        imagenUrlFinal = resImg.imagen_url;
+      }
+
+      const payload = {
+        nombre: nombreServ,
+        categoria: catServ,
+        descripcion: descServ,
+        duracion_minutos: Number(duracionServ),
+        margen_descanso_minutos: Number(margenServ),
+        precio: Number(precioServ),
+        modalidad: modalidadServ,
+        imagen_url: imagenUrlFinal,
+        activo: true
+      };
+
+      if (editandoServId) {
+        await apiFetch(`/servicios/${editandoServId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        setMensaje('Servicio actualizado correctamente.');
+      } else {
+        await apiFetch('/servicios', { method: 'POST', body: JSON.stringify(payload) });
+        setMensaje('Servicio añadido correctamente.');
+      }
+      limpiarFormularioServicio();
+      cargar();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubiendo(false);
     }
   }
 
@@ -257,15 +344,110 @@ export default function InventarioAdmin() {
 
         <div>
           <h2 style={{ fontSize: '1.7rem', marginBottom: '1rem' }}>Servicios Activos</h2>
+
+          <form onSubmit={guardarServicio} className="tarjeta" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>
+              {editandoServId ? 'Editar servicio' : 'Añadir nuevo servicio'}
+            </h3>
+            <div className="campo">
+              <label>Nombre de la terapia</label>
+              <input type="text" required value={nombreServ} onChange={(e) => setNombreServ(e.target.value)} />
+            </div>
+            <div className="campo">
+              <label>Descripción</label>
+              <textarea rows={2} placeholder="En qué consiste la sesión y sus beneficios..." value={descServ} onChange={(e) => setDescServ(e.target.value)} />
+            </div>
+            <div className="grid-2">
+              <div className="campo">
+                <label>Categoría</label>
+                <select value={catServ} onChange={(e) => setCatServ(e.target.value)}>
+                  <option value="masajes">Masajes</option>
+                  <option value="terapias_energeticas">Terapias Energéticas</option>
+                  <option value="crecimiento_alma">Crecimiento y Alma</option>
+                  <option value="otros">Otros</option>
+                </select>
+              </div>
+              <div className="campo">
+                <label>Modalidad</label>
+                <select value={modalidadServ} onChange={(e) => setModalidadServ(e.target.value)}>
+                  <option value="presencial">Presencial</option>
+                  <option value="online">Online</option>
+                  <option value="ambas">Ambas</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid-3">
+              <div className="campo">
+                <label>Precio (€)</label>
+                <input type="number" step="0.01" required value={precioServ} onChange={(e) => setPrecioServ(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label>Duración (min)</label>
+                <input type="number" required value={duracionServ} onChange={(e) => setDuracionServ(e.target.value)} />
+              </div>
+              <div className="campo">
+                <label>Descanso (min)</label>
+                <input type="number" required value={margenServ} onChange={(e) => setMargenServ(e.target.value)} />
+              </div>
+            </div>
+            <div className="campo">
+              <label>Foto del servicio</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setArchivoFotoServ(f);
+                  setPreviewFotoServ(URL.createObjectURL(f));
+                }}
+              />
+              {previewFotoServ && (
+                <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <img src={previewFotoServ} alt="Vista previa" style={{ width: 68, height: 68, objectFit: 'cover', borderRadius: 10 }} />
+                  <button
+                    type="button"
+                    className="btn btn-suave"
+                    style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}
+                    onClick={() => {
+                      setArchivoFotoServ(null);
+                      setPreviewFotoServ('');
+                      setImgServExistente('');
+                    }}
+                  >
+                    Quitar foto
+                  </button>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button type="submit" className="btn btn-primario" disabled={subiendo}>
+                {subiendo ? 'Guardando...' : editandoServId ? 'Actualizar servicio' : 'Guardar servicio'}
+              </button>
+              {editandoServId && (
+                <button type="button" className="btn btn-suave" onClick={limpiarFormularioServicio}>
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+          </form>
+
           {servicios.map((s) => (
-            <div key={s.id} className="tarjeta" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>{s.nombre}</strong>
-                <strong style={{ color: 'var(--terracota)' }}>{Number(s.precio).toFixed(2)} €</strong>
+            <div key={s.id} className="tarjeta" style={{ padding: '1rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {s.imagen_url && (
+                  <img src={s.imagen_url} alt={s.nombre} style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+                )}
+                <div>
+                  <strong>{s.nombre}</strong>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--texto-suave)' }}>
+                    {Number(s.precio).toFixed(2)} € · {s.duracion_minutos} min + {s.margen_descanso_minutos} min descanso · {s.modalidad}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--texto-suave)' }}>
-                {s.duracion_minutos} min + {s.margen_descanso_minutos} min descanso · {s.modalidad}
-              </div>
+              <button type="button" className="btn btn-salvia" style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }} onClick={() => cargarServicioParaEditar(s)}>
+                Editar
+              </button>
             </div>
           ))}
         </div>

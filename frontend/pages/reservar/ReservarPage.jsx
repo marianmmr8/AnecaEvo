@@ -2,7 +2,7 @@
 // PÁGINA DE RESERVA PASO A PASO (Servicio -> Fecha/Hora -> Anamnesis y Señal)
 // ============================================================================
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { apiFetch } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +11,7 @@ import CalendarioCitas from '../../components/reservas/CalendarioCitas';
 
 export default function ReservarPage() {
   const { usuario } = useAuth();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [servicios, setServicios] = useState([]);
@@ -29,6 +30,8 @@ export default function ReservarPage() {
   const [contraindicaciones, setContraindicaciones] = useState('');
   const [notasCliente, setNotasCliente] = useState('');
   const [bonoId, setBonoId] = useState('');
+  const [codigoRegaloInput, setCodigoRegaloInput] = useState('');
+  const [tarjetaRegalo, setTarjetaRegalo] = useState(() => location.state?.tarjetaRegalo || null);
   const [tipoPago, setTipoPago] = useState('senal');
   const [metodoPago, setMetodoPago] = useState('tarjeta');
 
@@ -37,19 +40,22 @@ export default function ReservarPage() {
   const [confirmada, setConfirmada] = useState(null);
 
   useEffect(() => {
-    apiFetch('/servicios').then((res) => {
-      const lista = res.servicios || [];
-      setServicios(lista);
-      const preId = Number(searchParams.get('servicio'));
-      if (preId) {
-        const encontrado = lista.find((s) => s.id === preId);
-        if (encontrado) {
-          setServicioSeleccionado(encontrado);
-          setModalidad(encontrado.modalidad === 'online' ? 'online' : 'presencial');
+    if (!usuario) return;
+    apiFetch('/servicios')
+      .then((res) => {
+        const lista = res.servicios || [];
+        setServicios(lista);
+        const preId = Number(searchParams.get('servicio'));
+        if (preId) {
+          const encontrado = lista.find((s) => s.id === preId);
+          if (encontrado) {
+            setServicioSeleccionado(encontrado);
+            setModalidad(encontrado.modalidad === 'online' ? 'online' : 'presencial');
+          }
         }
-      }
-    });
-  }, [searchParams]);
+      })
+      .catch((err) => setError(err.message));
+  }, [searchParams, usuario]);
 
   // Si el cliente está logueado, cargamos sus bonos activos para poder canjearlos
   useEffect(() => {
@@ -58,6 +64,24 @@ export default function ReservarPage() {
       .then((res) => setBonos((res.bonos || []).filter((b) => b.sesiones_restantes > 0)))
       .catch(() => {});
   }, [usuario]);
+
+  async function aplicarCodigoRegalo(e) {
+    e.preventDefault();
+    setError('');
+    try {
+      const res = await apiFetch(`/tarjetas/validar/${codigoRegaloInput.trim()}`);
+      setTarjetaRegalo(res.tarjeta);
+      if (res.tarjeta.servicio_id) {
+        const encontrado = servicios.find((s) => s.id === Number(res.tarjeta.servicio_id));
+        if (encontrado) {
+          setServicioSeleccionado(encontrado);
+          setModalidad(encontrado.modalidad === 'online' ? 'online' : 'presencial');
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   async function confirmarReserva(e) {
     e.preventDefault();
@@ -79,8 +103,9 @@ export default function ReservarPage() {
           notas_cliente: notasCliente,
           motivo_consulta: motivoConsulta,
           contraindicaciones,
-          bono_id: bonoId || null,
-          tipo_pago: bonoId ? 'bono' : tipoPago,
+          bono_id: tarjetaRegalo ? null : bonoId || null,
+          codigo_regalo: tarjetaRegalo ? tarjetaRegalo.codigo : null,
+          tipo_pago: tarjetaRegalo ? 'regalo' : bonoId ? 'bono' : tipoPago,
           metodo_pago: metodoPago
         })
       });
@@ -90,6 +115,17 @@ export default function ReservarPage() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  // Si no ha iniciado sesión, le llevamos al login/registro con un aviso claro
+  if (!usuario) {
+    return (
+      <Navigate
+        to="/mi-cuenta"
+        replace
+        state={{ aviso: 'Debes registrarte o iniciar sesión antes de pedir cita online.' }}
+      />
+    );
   }
 
   if (confirmada) {
@@ -123,12 +159,52 @@ export default function ReservarPage() {
 
         {error && <div className="alerta-error">{error}</div>}
 
+        {/* Canjeo de Tarjeta Regalo (sin mostrar precios al destinatario) */}
+        <div className="tarjeta" style={{ padding: '1.2rem', marginBottom: '2rem', background: '#fdf8f2' }}>
+          {!tarjetaRegalo ? (
+            <form onSubmit={aplicarCodigoRegalo} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'center' }}>
+              <strong style={{ fontSize: '0.95rem' }}>¿Tienes una Tarjeta Regalo?</strong>
+              <input
+                type="text"
+                placeholder="Introduce tu código (ej: ANECA-7F3K9A)"
+                value={codigoRegaloInput}
+                onChange={(e) => setCodigoRegaloInput(e.target.value.toUpperCase())}
+                style={{ flex: 1, minWidth: '210px', padding: '0.55rem 0.8rem', borderRadius: 10, border: '1px solid var(--borde-suave)' }}
+              />
+              <button type="submit" className="btn btn-salvia" style={{ padding: '0.55rem 1rem' }}>
+                Aplicar código
+              </button>
+            </form>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: 'var(--terracota)' }}>🎁 Tarjeta Regalo aplicada ({tarjetaRegalo.codigo})</strong>
+                <button type="button" className="btn btn-suave" style={{ padding: '0.25rem 0.7rem', fontSize: '0.78rem' }} onClick={() => setTarjetaRegalo(null)}>
+                  Quitar
+                </button>
+              </div>
+              {tarjetaRegalo.nombre_destinatario && <p style={{ fontSize: '0.9rem', marginTop: '0.3rem' }}>Para: <strong>{tarjetaRegalo.nombre_destinatario}</strong></p>}
+              {tarjetaRegalo.descripcion_admin && <p style={{ fontSize: '0.9rem', color: 'var(--texto-suave)' }}>{tarjetaRegalo.descripcion_admin}</p>}
+              {tarjetaRegalo.dedicatoria && <p style={{ fontSize: '0.9rem', fontStyle: 'italic', marginTop: '0.3rem' }}>“{tarjetaRegalo.dedicatoria}”</p>}
+            </div>
+          )}
+        </div>
+
         {/* Paso 1: Elegir terapia */}
         <section style={{ marginBottom: '2.5rem' }}>
           <h2 style={{ fontSize: '1.7rem', marginBottom: '1rem' }}>1. Elige tu terapia</h2>
           <SelectorServicio
-            servicios={servicios}
+            servicios={
+              tarjetaRegalo
+                ? servicios.filter((s) =>
+                    tarjetaRegalo.servicio_id
+                      ? s.id === Number(tarjetaRegalo.servicio_id)
+                      : Number(s.precio) <= Number(tarjetaRegalo.precio_maximo)
+                  )
+                : servicios
+            }
             servicioSeleccionado={servicioSeleccionado}
+            ocultarPrecio={Boolean(tarjetaRegalo)}
             onSeleccionar={(s) => {
               setServicioSeleccionado(s);
               setModalidad(s.modalidad === 'online' ? 'online' : 'presencial');
@@ -207,8 +283,8 @@ export default function ReservarPage() {
                   />
                 </div>
 
-                {/* Selección de Bono o Pago de Señal */}
-                {bonos.length > 0 && (
+                {/* Selección de Bono o Pago de Señal (oculto si canjea Tarjeta Regalo) */}
+                {!tarjetaRegalo && bonos.length > 0 && (
                   <div className="campo">
                     <label>¿Quieres usar uno de tus bonos disponibles?</label>
                     <select value={bonoId} onChange={(e) => setBonoId(e.target.value)}>
@@ -222,7 +298,7 @@ export default function ReservarPage() {
                   </div>
                 )}
 
-                {!bonoId && (
+                {!tarjetaRegalo && !bonoId && (
                   <div className="grid-2">
                     <div className="campo">
                       <label>Modalidad de pago</label>
@@ -233,15 +309,20 @@ export default function ReservarPage() {
                         <option value="total">
                           Pago completo ({Number(servicioSeleccionado.precio).toFixed(2)} €)
                         </option>
+                        <option value="efectivo">
+                          Efectivo (pagar {Number(servicioSeleccionado.precio).toFixed(2)} € en el centro)
+                        </option>
                       </select>
                     </div>
-                    <div className="campo">
-                      <label>Pasarela</label>
-                      <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
-                        <option value="tarjeta">Tarjeta (Stripe)</option>
-                        <option value="bizum">Bizum</option>
-                      </select>
-                    </div>
+                    {tipoPago !== 'efectivo' && (
+                      <div className="campo">
+                        <label>Pasarela</label>
+                        <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
+                          <option value="tarjeta">Tarjeta (Stripe)</option>
+                          <option value="bizum">Bizum</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
 

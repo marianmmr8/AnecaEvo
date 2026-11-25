@@ -93,11 +93,13 @@ export default function Navbar() {
                 Tienda <ChevronDown size={15} />
               </button>
               <div className="nav-dropdown">
-                <Link to="/tienda?cat=aceites" onClick={() => setMenuMovil(false)}>Aceites y Esencias</Link>
-                <Link to="/tienda?cat=cremas" onClick={() => setMenuMovil(false)}>Cremas y Bálsamos</Link>
-                <Link to="/tienda?cat=infusiones" onClick={() => setMenuMovil(false)}>Infusiones y Especias</Link>
-                <Link to="/tienda?cat=libros" onClick={() => setMenuMovil(false)}>Libros recomendados</Link>
-                <Link to="/tienda" onClick={() => setMenuMovil(false)}>Toda la tienda</Link>
+                <Link to="/tienda?cat=aceites" onClick={() => setMenuMovil(false)}>💧 Aceites y Esencias</Link>
+                <Link to="/tienda?cat=cremas" onClick={() => setMenuMovil(false)}>🧴 Cremas y Bálsamos</Link>
+                <Link to="/tienda?cat=infusiones" onClick={() => setMenuMovil(false)}>🍵 Infusiones y Especias</Link>
+                <Link to="/tienda?cat=libros" onClick={() => setMenuMovil(false)}>📚 Libros recomendados</Link>
+                <Link to="/tarjetas-regalo" onClick={() => setMenuMovil(false)}>🎁 Tarjetas Regalo</Link>
+                <Link to="/bonos" onClick={() => setMenuMovil(false)}>🎟️ Bonos de Sesiones</Link>
+                <Link to="/tienda" onClick={() => setMenuMovil(false)}>🛍️ Toda la tienda</Link>
               </div>
             </li>
 
@@ -121,6 +123,18 @@ export default function Navbar() {
           <Link to="/mi-cuenta" className="icono-btn" title={usuario ? `Cuenta de ${usuario.nombre}` : 'Mi cuenta'}>
             <User size={19} />
           </Link>
+
+          {usuario && (
+            <button
+              type="button"
+              className="btn btn-suave"
+              onClick={cerrarSesion}
+              title="Cerrar sesión"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
+            >
+              <LogOut size={15} /> Salir
+            </button>
+          )}
 
           <button
             type="button"

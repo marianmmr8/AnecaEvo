@@ -16,6 +16,7 @@ const productosRoutes = require('./routes/productosRoutes');
 const pedidosRoutes = require('./routes/pedidosRoutes');
 const clientesRoutes = require('./routes/clientesRoutes');
 const asistenteRoutes = require('./routes/asistenteRoutes');
+const tarjetasRoutes = require('./routes/tarjetasRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
@@ -43,6 +44,7 @@ app.use('/api/productos', productosRoutes);
 app.use('/api/pedidos', pedidosRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/asistente', asistenteRoutes);
+app.use('/api/tarjetas', tarjetasRoutes);
 
 // Arranque del servidor
 app.listen(PORT, async () => {

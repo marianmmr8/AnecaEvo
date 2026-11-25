@@ -46,6 +46,16 @@ async function inicializar() {
       console.log('✅ Datos iniciales (servicios, horarios y productos) insertados.');
     }
 
+    // Asegura que Masaje con Maderoterapia exista también en bases de datos ya creadas
+    await conexion.query(
+      `INSERT IGNORE INTO \`aneca evo\`.servicios
+       (nombre, slug, categoria, descripcion, duracion_minutos, margen_descanso_minutos, precio, modalidad, imagen_url, activo)
+       VALUES ('Masaje con Maderoterapia', 'masaje-maderoterapia', 'masajes',
+       'Técnica natural con instrumentos de madera anatómicos para remodelar, activar la circulación linfática, tonificar y liberar tensión profunda.',
+       60, 20, 65.00, 'presencial',
+       'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=900&q=80', TRUE)`
+    );
+
     // Creamos cuenta Admin demo y Cliente demo si no existen
     const [admins] = await conexion.query("SELECT id FROM `aneca evo`.usuarios WHERE email = 'admin@anecaevo.com'");
     if (admins.length === 0) {

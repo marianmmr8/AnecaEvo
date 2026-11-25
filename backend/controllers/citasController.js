@@ -146,7 +146,7 @@ async function crearCita(req, res) {
   try {
     const {
       servicio_id, fecha, hora_inicio, modalidad, notas_cliente,
-      motivo_consulta, contraindicaciones, bono_id, metodo_pago, tipo_pago
+      motivo_consulta, contraindicaciones, bono_id, codigo_regalo, metodo_pago, tipo_pago
     } = req.body;
 
     if (!servicio_id || !fecha || !hora_inicio || !modalidad) {
@@ -171,8 +171,32 @@ async function crearCita(req, res) {
     let pagoEstado = 'pendiente';
     let estadoCita = 'confirmada';
 
-    // Si el cliente usa un bono con sesiones disponibles, descontamos 1 sesión
-    if (bono_id) {
+    // Si el cliente canjea una Tarjeta Regalo, la validamos y la marcamos como canjeada
+    if (codigo_regalo) {
+      const codigoLimpio = String(codigo_regalo).trim().toUpperCase();
+      const [tarjetas] = await conexion.query(
+        "SELECT * FROM tarjetas_regalo WHERE codigo = ? AND estado = 'activa' FOR UPDATE",
+        [codigoLimpio]
+      );
+      if (tarjetas.length === 0) {
+        await conexion.rollback();
+        return res.status(400).json({ error: 'El código de tarjeta regalo no es válido o ya fue canjeado.' });
+      }
+      const tarjeta = tarjetas[0];
+      if (tarjeta.servicio_id && Number(tarjeta.servicio_id) !== Number(servicio.id)) {
+        await conexion.rollback();
+        return res.status(400).json({ error: 'Esta tarjeta regalo corresponde a otra terapia concreta.' });
+      }
+      if (!tarjeta.servicio_id && Number(servicio.precio) > Number(tarjeta.precio_maximo)) {
+        await conexion.rollback();
+        return res.status(400).json({ error: 'Esta terapia supera el valor incluido en tu tarjeta regalo.' });
+      }
+      await conexion.query(
+        "UPDATE tarjetas_regalo SET estado = 'canjeada', canjeada_por_usuario_id = ? WHERE id = ?",
+        [req.usuario.id, tarjeta.id]
+      );
+      pagoEstado = 'pagado';
+    } else if (bono_id) {
       const [bonos] = await conexion.query(
         'SELECT * FROM bonos_clientes WHERE id = ? AND usuario_id = ? AND activo = TRUE AND sesiones_restantes > 0 FOR UPDATE',
         [bono_id, req.usuario.id]
@@ -186,6 +210,8 @@ async function crearCita(req, res) {
         [bono_id]
       );
       pagoEstado = 'pagado';
+    } else if (tipo_pago === 'efectivo') {
+      pagoEstado = 'pendiente';
     } else if (tipo_pago === 'senal' || tipo_pago === 'total') {
       // Procesamos señal (20% o mínimo 15€) o pago total mediante servicio de pago
       const importe = tipo_pago === 'total' ? Number(servicio.precio) : Math.max(15, Number((servicio.precio * 0.25).toFixed(2)));

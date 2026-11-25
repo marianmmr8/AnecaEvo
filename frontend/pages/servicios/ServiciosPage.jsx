@@ -37,9 +37,12 @@ export default function ServiciosPage() {
         <div style={{ marginBottom: '2.5rem' }}>
           <span className="etiqueta" style={{ marginBottom: '0.6rem' }}>Carta de Terapias</span>
           <h1 style={{ fontSize: '2.8rem', marginBottom: '0.6rem' }}>Servicios y Acompañamientos</h1>
-          <p style={{ color: 'var(--texto-suave)', maxWidth: '680px' }}>
+          <p style={{ color: 'var(--texto-suave)', maxWidth: '680px', marginBottom: '1rem' }}>
             Elige el acompañamiento que tu cuerpo o tu alma necesitan hoy. En cada terapia te sugerimos también productos naturales de nuestra tienda para prolongar sus beneficios en casa.
           </p>
+          <Link to="/bonos" className="btn btn-salvia" style={{ padding: '0.5rem 1.1rem', fontSize: '0.88rem' }}>
+            🎟️ Ver Bonos de Sesiones con descuento
+          </Link>
         </div>
 
         {/* Filtros por categoría */}

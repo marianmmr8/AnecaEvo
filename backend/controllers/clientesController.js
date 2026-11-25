@@ -3,6 +3,7 @@
 // ============================================================================
 const { randomUUID } = require('crypto');
 const { pool } = require('../config/db');
+const { procesarPago } = require('../services/pagoService');
 
 /**
  * GET /api/clientes/bonos/mios - Devuelve los bonos activos del cliente autenticado
@@ -147,4 +148,125 @@ async function eliminarCliente(req, res) {
   }
 }
 
-module.exports = { misBonos, listarClientes, actualizarCliente, eliminarCliente, obtenerFichasCliente, crearFichaCliente, asignarBono };
+/**
+ * PUT /api/clientes/fichas/:fichaId - Modifica una ficha privada de evolución (Solo Admin)
+ */
+async function actualizarFichaCliente(req, res) {
+  try {
+    const { fichaId } = req.params;
+    const { motivo_consulta, contraindicaciones, notas_privadas_terapeuta } = req.body;
+    await pool.query(
+      `UPDATE fichas_clientes
+       SET motivo_consulta = ?, contraindicaciones = ?, notas_privadas_terapeuta = ?
+       WHERE id = ?`,
+      [motivo_consulta || null, contraindicaciones || null, notas_privadas_terapeuta || null, fichaId]
+    );
+    return res.json({ mensaje: 'Ficha privada actualizada.' });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo actualizar la ficha privada.' });
+  }
+}
+
+/**
+ * DELETE /api/clientes/fichas/:fichaId - Elimina una ficha privada de evolución (Solo Admin)
+ */
+async function eliminarFichaCliente(req, res) {
+  try {
+    await pool.query('DELETE FROM fichas_clientes WHERE id = ?', [req.params.fichaId]);
+    return res.json({ mensaje: 'Ficha privada eliminada.' });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo eliminar la ficha privada.' });
+  }
+}
+
+/**
+ * POST /api/clientes/bonos/comprar - Permite al cliente comprar un bono de sesiones desde la tienda
+ */
+async function comprarBono(req, res) {
+  try {
+    const { servicio_id, sesiones, metodo_pago } = req.body;
+    const numSesiones = Number(sesiones);
+    if (!servicio_id || ![3, 5, 10].includes(numSesiones)) {
+      return res.status(400).json({ error: 'Selecciona una terapia y un bono de 3, 5 o 10 sesiones.' });
+    }
+
+    const [servs] = await pool.query('SELECT id, nombre, precio FROM servicios WHERE id = ? AND activo = TRUE', [servicio_id]);
+    if (servs.length === 0) {
+      return res.status(404).json({ error: 'Terapia no encontrada.' });
+    }
+
+    const servicio = servs[0];
+    const descuento = numSesiones === 10 ? 0.15 : numSesiones === 5 ? 0.10 : 0.05;
+    const total = Number((Number(servicio.precio) * numSesiones * (1 - descuento)).toFixed(2));
+    const nombreBono = `Bono ${numSesiones}x ${servicio.nombre}`;
+
+    await procesarPago({
+      importe: total,
+      metodo: metodo_pago || 'tarjeta',
+      concepto: nombreBono
+    });
+
+    const id = randomUUID();
+    await pool.query(
+      `INSERT INTO bonos_clientes (id, usuario_id, servicio_id, nombre_bono, sesiones_totales, sesiones_restantes, activo)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+      [id, req.usuario.id, servicio.id, nombreBono, numSesiones, numSesiones]
+    );
+
+    return res.status(201).json({
+      mensaje: `¡${nombreBono} añadido a tu cuenta! Ya puedes usarlo al reservar cita.`,
+      bono: { id, nombre_bono: nombreBono, sesiones_totales: numSesiones, total }
+    });
+  } catch (error) {
+    console.error('Error al comprar bono:', error);
+    return res.status(500).json({ error: 'No se pudo completar la compra del bono.' });
+  }
+}
+
+/**
+ * GET /api/clientes/:id/bonos - Lista los bonos de un cliente (Solo Admin)
+ */
+async function obtenerBonosCliente(req, res) {
+  try {
+    const [bonos] = await pool.query(
+      'SELECT * FROM bonos_clientes WHERE usuario_id = ? AND activo = TRUE ORDER BY creado_en DESC',
+      [req.params.id]
+    );
+    return res.json({ bonos });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al cargar los bonos del cliente.' });
+  }
+}
+
+/**
+ * PATCH /api/clientes/bonos/:bonoId/descontar - Descuenta 1 sesión del bono (Solo Admin)
+ */
+async function descontarSesionBono(req, res) {
+  try {
+    const [resUpd] = await pool.query(
+      'UPDATE bonos_clientes SET sesiones_restantes = sesiones_restantes - 1 WHERE id = ? AND sesiones_restantes > 0',
+      [req.params.bonoId]
+    );
+    if (resUpd.affectedRows === 0) {
+      return res.status(400).json({ error: 'El bono ya no tiene sesiones restantes.' });
+    }
+    return res.json({ mensaje: 'Se ha descontado 1 sesión del bono.' });
+  } catch (error) {
+    return res.status(500).json({ error: 'No se pudo descontar la sesión del bono.' });
+  }
+}
+
+module.exports = {
+  misBonos,
+  comprarBono,
+  obtenerBonosCliente,
+  descontarSesionBono,
+  listarClientes,
+  actualizarCliente,
+  eliminarCliente,
+  obtenerFichasCliente,
+  crearFichaCliente,
+  actualizarFichaCliente,
+  eliminarFichaCliente,
+  asignarBono
+};

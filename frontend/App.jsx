@@ -15,6 +15,8 @@ import SobreMiPage from './pages/sobre-mi/SobreMiPage';
 import ServiciosPage from './pages/servicios/ServiciosPage';
 import ReservarPage from './pages/reservar/ReservarPage';
 import TiendaPage from './pages/tienda/TiendaPage';
+import TarjetasRegaloPage from './pages/tienda/TarjetasRegaloPage';
+import BonosPage from './pages/tienda/BonosPage';
 import MiCuentaPage from './pages/mi-cuenta/MiCuentaPage';
 import AdminPanelPage from './pages/admin/AdminPanelPage';
 
@@ -32,6 +34,8 @@ export default function App() {
                 <Route path="/servicios" element={<ServiciosPage />} />
                 <Route path="/reservar" element={<ReservarPage />} />
                 <Route path="/tienda" element={<TiendaPage />} />
+                <Route path="/tarjetas-regalo" element={<TarjetasRegaloPage />} />
+                <Route path="/bonos" element={<BonosPage />} />
                 <Route path="/mi-cuenta" element={<MiCuentaPage />} />
                 <Route path="/admin" element={<AdminPanelPage />} />
               </Routes>

@@ -1,0 +1,9 @@
+{
+  "name": "aneca-evo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node start.js",
+    "init-db": "npm --prefix backend run init-db"
+  }
+}

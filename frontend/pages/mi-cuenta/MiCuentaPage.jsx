@@ -2,14 +2,22 @@
 // PÁGINA MI CUENTA (Login, Registro, Mis Citas con regla 24h, Mis Pedidos y Bonos)
 // ============================================================================
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { LogOut, Calendar, Package, Ticket } from 'lucide-react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, Calendar, Package, Ticket, Eye, EyeOff, Gift } from 'lucide-react';
 import { apiFetch } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 export default function MiCuentaPage() {
   const { usuario, guardarSesion, cerrarSesion } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const avisoPrevio = location.state?.aviso || '';
+  const [codigoCupon, setCodigoCupon] = useState('');
   const [modoRegistro, setModoRegistro] = useState(false);
+  const [modoRecuperar, setModoRecuperar] = useState(false);
+  const [tokenRecuperacion, setTokenRecuperacion] = useState('');
+  const [nuevaPassword, setNuevaPassword] = useState('');
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   // Estados de formulario auth
   const [nombre, setNombre] = useState('');
@@ -90,6 +98,11 @@ export default function MiCuentaPage() {
                 : 'Accede a tus citas, bonos de sesiones y pedidos.'}
             </p>
 
+            {avisoPrevio && (
+              <div className="alerta-exito" style={{ background: '#fdf4e7', color: '#8a5314', borderColor: '#ebd0a7' }}>
+                {avisoPrevio}
+              </div>
+            )}
             {error && <div className="alerta-error">{error}</div>}
 
             <form onSubmit={enviarAuth}>
@@ -104,8 +117,16 @@ export default function MiCuentaPage() {
                     <input type="text" required value={apellidos} onChange={(e) => setApellidos(e.target.value)} />
                   </div>
                   <div className="campo">
-                    <label>Teléfono (para recordatorios WhatsApp)</label>
-                    <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+                    <label>Teléfono (obligatorio, solo números)</label>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      required
+                      pattern="[0-9+]{9,15}"
+                      placeholder="Ej: 600111222"
+                      value={telefono}
+                      onChange={(e) => setTelefono(e.target.value.replace(/[^0-9+]/g, ''))}
+                    />
                   </div>
                 </>
               )}
@@ -117,7 +138,32 @@ export default function MiCuentaPage() {
 
               <div className="campo">
                 <label>Contraseña</label>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type={mostrarPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{ width: '100%', paddingRight: '2.6rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarPassword(!mostrarPassword)}
+                    title={mostrarPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    style={{
+                      position: 'absolute',
+                      right: '0.6rem',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--texto-suave)',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn btn-primario" style={{ width: '100%', marginBottom: '1rem' }}>
@@ -128,14 +174,95 @@ export default function MiCuentaPage() {
             <button
               type="button"
               className="btn btn-suave"
-              style={{ width: '100%' }}
+              style={{ width: '100%', marginBottom: '0.6rem' }}
               onClick={() => {
                 setModoRegistro(!modoRegistro);
+                setModoRecuperar(false);
                 setError('');
               }}
             >
               {modoRegistro ? '¿Ya tienes cuenta? Inicia sesión' : '¿Primera vez? Crea tu cuenta'}
             </button>
+
+            {!modoRegistro && (
+              <button
+                type="button"
+                onClick={() => {
+                  setModoRecuperar(!modoRecuperar);
+                  setError('');
+                  setMensaje('');
+                }}
+                style={{
+                  width: '100%', background: 'none', border: 'none',
+                  color: 'var(--terracota)', cursor: 'pointer', fontSize: '0.88rem', textDecoration: 'underline'
+                }}
+              >
+                {modoRecuperar ? 'Ocultar recuperación' : '¿Has olvidado tu contraseña?'}
+              </button>
+            )}
+
+            {modoRecuperar && (
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--borde-suave)' }}>
+                {mensaje && <div className="alerta-exito">{mensaje}</div>}
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setError('');
+                    setMensaje('');
+                    try {
+                      const res = await apiFetch('/auth/olvide-password', {
+                        method: 'POST',
+                        body: JSON.stringify({ email })
+                      });
+                      setMensaje(res.mensaje);
+                    } catch (err) {
+                      setError(err.message);
+                    }
+                  }}
+                  style={{ marginBottom: '1rem' }}
+                >
+                  <div className="campo">
+                    <label>Tu correo registrado</label>
+                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  </div>
+                  <button type="submit" className="btn btn-salvia" style={{ width: '100%' }}>
+                    Enviar email de recuperación
+                  </button>
+                </form>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setError('');
+                    setMensaje('');
+                    try {
+                      const res = await apiFetch('/auth/restablecer-password', {
+                        method: 'POST',
+                        body: JSON.stringify({ token: tokenRecuperacion, nuevaPassword })
+                      });
+                      setMensaje(res.mensaje);
+                      setModoRecuperar(false);
+                      setTokenRecuperacion('');
+                      setNuevaPassword('');
+                    } catch (err) {
+                      setError(err.message);
+                    }
+                  }}
+                >
+                  <div className="campo">
+                    <label>Código recibido por email</label>
+                    <input type="text" required value={tokenRecuperacion} onChange={(e) => setTokenRecuperacion(e.target.value)} />
+                  </div>
+                  <div className="campo">
+                    <label>Nueva contraseña (mín. 6 caracteres)</label>
+                    <input type="password" required minLength={6} value={nuevaPassword} onChange={(e) => setNuevaPassword(e.target.value)} />
+                  </div>
+                  <button type="submit" className="btn btn-primario" style={{ width: '100%' }}>
+                    Restablecer contraseña
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -158,6 +285,41 @@ export default function MiCuentaPage() {
 
         {error && <div className="alerta-error">{error}</div>}
         {mensaje && <div className="alerta-exito">{mensaje}</div>}
+
+        {/* Canjear Cupón / Tarjeta Regalo desde Mi Cuenta */}
+        <section className="tarjeta" style={{ padding: '1.35rem', marginBottom: '2.2rem', background: '#fdf8f2' }}>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Gift size={20} color="var(--terracota)" /> Canjear Cupón / Tarjeta Regalo
+          </h2>
+          <p style={{ fontSize: '0.9rem', color: 'var(--texto-suave)', marginBottom: '0.9rem' }}>
+            Introduce el código que te han regalado para elegir tu terapia y reservar sin coste.
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError('');
+              try {
+                const res = await apiFetch(`/tarjetas/validar/${codigoCupon.trim()}`);
+                navigate('/reservar', { state: { tarjetaRegalo: res.tarjeta } });
+              } catch (err) {
+                setError(err.message);
+              }
+            }}
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}
+          >
+            <input
+              type="text"
+              required
+              placeholder="Ej: ANECA-7RQEEB"
+              value={codigoCupon}
+              onChange={(e) => setCodigoCupon(e.target.value.toUpperCase())}
+              style={{ flex: 1, minWidth: '210px', padding: '0.6rem 0.9rem', borderRadius: 10, border: '1px solid var(--borde-suave)' }}
+            />
+            <button type="submit" className="btn btn-primario">
+              Canjear y reservar cita
+            </button>
+          </form>
+        </section>
 
         {/* Bonos activos */}
         {bonos.length > 0 && (

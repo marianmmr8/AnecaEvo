@@ -40,4 +40,20 @@ async function enviarCancelacionCita({ email, nombre, servicioNombre, fecha, hor
   return { enviado: true, canal: 'simulado' };
 }
 
-module.exports = { enviarConfirmacionCita, enviarRecordatorio24h, enviarCancelacionCita };
+/**
+ * enviarRecuperacionPassword: Envía el código/enlace de restablecimiento de contraseña.
+ */
+async function enviarRecuperacionPassword({ email, nombre, token }) {
+  console.log('------------------------------------------------------------');
+  console.log(`[EMAIL RECUPERACIÓN] Hola ${nombre} (${email})`);
+  console.log(`Código / Token para restablecer contraseña (válido 15 min): ${token}`);
+  console.log('------------------------------------------------------------');
+  return { enviado: true, canal: 'simulado' };
+}
+
+module.exports = {
+  enviarConfirmacionCita,
+  enviarRecordatorio24h,
+  enviarCancelacionCita,
+  enviarRecuperacionPassword
+};

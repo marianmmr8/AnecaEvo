@@ -2,18 +2,18 @@
 // PÁGINA DE TIENDA NATURAL (Filtros: Aceites, Cremas, Infusiones, Especias, Libros)
 // ============================================================================
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { apiFetch } from '../../services/api';
 import TarjetaProducto from '../../components/tienda/TarjetaProducto';
 
 const CATEGORIAS_TIENDA = [
-  { id: 'todas', label: 'Todos' },
-  { id: 'aceites', label: 'Aceites' },
-  { id: 'cremas', label: 'Cremas' },
-  { id: 'infusiones', label: 'Infusiones' },
-  { id: 'especias', label: 'Especias' },
-  { id: 'libros', label: 'Libros' }
+  { id: 'todas', label: '🛍️ Todos' },
+  { id: 'aceites', label: '💧 Aceites' },
+  { id: 'cremas', label: '🧴 Cremas' },
+  { id: 'infusiones', label: '🍵 Infusiones' },
+  { id: 'especias', label: '🌿 Especias' },
+  { id: 'libros', label: '📚 Libros' }
 ];
 
 export default function TiendaPage() {
@@ -58,6 +58,12 @@ export default function TiendaPage() {
                 {cat.label}
               </button>
             ))}
+            <Link to="/tarjetas-regalo" className="btn btn-suave">
+              🎁 Tarjetas Regalo
+            </Link>
+            <Link to="/bonos" className="btn btn-suave">
+              🎟️ Bonos
+            </Link>
           </div>
 
           <div style={{ position: 'relative', minWidth: '240px' }}>

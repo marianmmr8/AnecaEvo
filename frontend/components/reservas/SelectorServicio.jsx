@@ -10,7 +10,7 @@ const ETIQUETAS_CATEGORIA = {
   otros: 'Bienestar'
 };
 
-export default function SelectorServicio({ servicios, servicioSeleccionado, onSeleccionar }) {
+export default function SelectorServicio({ servicios, servicioSeleccionado, onSeleccionar, ocultarPrecio = false }) {
   return (
     <div className="grid-2">
       {servicios.map((servicio) => {
@@ -29,7 +29,9 @@ export default function SelectorServicio({ servicios, servicioSeleccionado, onSe
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span className="etiqueta">{ETIQUETAS_CATEGORIA[servicio.categoria] || servicio.categoria}</span>
-              <strong style={{ fontSize: '1.15rem', color: 'var(--terracota)' }}>{Number(servicio.precio).toFixed(2)} €</strong>
+              {!ocultarPrecio && (
+                <strong style={{ fontSize: '1.15rem', color: 'var(--terracota)' }}>{Number(servicio.precio).toFixed(2)} €</strong>
+              )}
             </div>
             <h3 style={{ fontSize: '1.35rem', marginBottom: '0.4rem' }}>{servicio.nombre}</h3>
             <p style={{ fontSize: '0.9rem', color: 'var(--texto-suave)', marginBottom: '0.8rem' }}>
