@@ -10,32 +10,7 @@ const { procesarPago } = require('../services/pagoService');
 let columnaMotivoVerificada = false;
 
 async function asegurarColumnaMotivoCancelacion() {
-  if (columnaMotivoVerificada) return;
-  const dbName = process.env.DB_NAME || 'aneca evo';
-  const [cols] = await pool.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'citas' AND COLUMN_NAME = 'motivo_cancelacion'`,
-    [dbName]
-  );
-  if (cols.length === 0) {
-    await pool.query('ALTER TABLE citas ADD COLUMN motivo_cancelacion TEXT NULL AFTER notas_cliente');
-  }
-  const [colsOrigen] = await pool.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'citas' AND COLUMN_NAME = 'origen_pago'`,
-    [dbName]
-  );
-  if (colsOrigen.length === 0) {
-    await pool.query('ALTER TABLE citas ADD COLUMN origen_pago VARCHAR(150) NULL AFTER pago_estado');
-  }
-  const [colsCompletada] = await pool.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'citas' AND COLUMN_NAME = 'completada_en'`,
-    [dbName]
-  );
-  if (colsCompletada.length === 0) {
-    await pool.query('ALTER TABLE citas ADD COLUMN completada_en DATETIME NULL AFTER origen_pago');
-  }
+  // Las columnas motivo_cancelacion, origen_pago y completada_en ya están incluidas en aneca_evo_postgres.sql
   columnaMotivoVerificada = true;
 }
 
@@ -287,7 +262,7 @@ async function crearCita(req, res) {
       fecha,
       horaInicio: slotValido.hora_inicio,
       modalidad
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.status(201).json({
       mensaje: '¡Tu cita ha sido reservada con éxito!',
@@ -425,7 +400,7 @@ async function actualizarEstadoCita(req, res) {
           fecha: info.fecha,
           horaInicio: info.hora_inicio.slice(0, 5),
           motivo: motivo_cancelacion.trim()
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 

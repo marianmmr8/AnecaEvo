@@ -8,16 +8,7 @@ const { enviarConfirmacionPedido } = require('../services/emailService');
 
 let columnaNotaPedidoVerificada = false;
 async function asegurarColumnaNotaPedido() {
-  if (columnaNotaPedidoVerificada) return;
-  const dbName = process.env.DB_NAME || 'aneca evo';
-  const [cols] = await pool.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'nota_cliente_cambio'`,
-    [dbName]
-  );
-  if (cols.length === 0) {
-    await pool.query('ALTER TABLE pedidos ADD COLUMN nota_cliente_cambio TEXT NULL AFTER direccion_envio');
-  }
+  // La columna nota_cliente_cambio ya está incluida en aneca_evo_postgres.sql
   columnaNotaPedidoVerificada = true;
 }
 
@@ -193,7 +184,7 @@ async function confirmarPedidoAdmin(req, res) {
         nombre: info.nombre,
         pedidoId: info.id,
         total: info.total
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     return res.json({ mensaje: 'Pedido confirmado y notificación enviada al cliente.' });

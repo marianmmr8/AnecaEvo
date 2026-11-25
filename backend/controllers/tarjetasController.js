@@ -9,24 +9,7 @@ let tablaTarjetasVerificada = false;
 
 // Crea la tabla `tarjetas_regalo` automáticamente si aún no existe en `aneca evo`
 async function asegurarTablaTarjetas() {
-  if (tablaTarjetasVerificada) return;
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS tarjetas_regalo (
-      id CHAR(36) NOT NULL,
-      codigo VARCHAR(30) NOT NULL,
-      comprador_usuario_id CHAR(36) NULL,
-      canjeada_por_usuario_id CHAR(36) NULL,
-      servicio_id INT NULL,
-      precio_maximo DECIMAL(10, 2) NOT NULL,
-      nombre_destinatario VARCHAR(150) NULL,
-      dedicatoria TEXT NULL,
-      descripcion_admin TEXT NULL,
-      estado ENUM('activa', 'canjeada', 'cancelada') NOT NULL DEFAULT 'activa',
-      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (id),
-      UNIQUE KEY uk_tarjeta_codigo (codigo)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-  `);
+  // La tabla tarjetas_regalo ya está incluida en aneca_evo_postgres.sql
   tablaTarjetasVerificada = true;
 }
 

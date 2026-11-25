@@ -1,28 +1,54 @@
 // ============================================================================
-// CONFIGURACIÓN DE CONEXIÓN A MYSQL (Base de datos: `aneca evo`)
+// CONFIGURACIÓN DE CONEXIÓN A POSTGRESQL / SUPABASE (Compatible con los controladores)
 // ============================================================================
-const mysql = require('mysql2/promise'); // Cliente MySQL con soporte para async/await
-require('dotenv').config(); // Carga las variables de entorno desde el archivo .env
+const { Pool, types } = require('pg');
+require('dotenv').config();
 
-// Creamos un pool de conexiones para reutilizar conexiones de forma eficiente
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',         // Servidor de base de datos (localhost en XAMPP)
-  port: Number(process.env.DB_PORT) || 3306,        // Puerto estándar de MySQL
-  user: process.env.DB_USER || 'root',              // Usuario de MySQL
-  password: process.env.DB_PASSWORD ?? '',          // Contraseña (vacía por defecto en XAMPP)
-  database: process.env.DB_NAME || 'aneca evo',     // Nombre exacto de tu base de datos
-  waitForConnections: true,                         // Esperar si todas las conexiones están ocupadas
-  connectionLimit: 10,                              // Máximo 10 conexiones simultáneas
-  queueLimit: 0,                                    // Sin límite en la cola de espera
-  charset: 'utf8mb4',                               // Soporte completo de acentos y emojis
-  dateStrings: true                                 // Devuelve DATE y DATETIME como texto YYYY-MM-DD sin desfases horarios
-});
+// Devuelve DATE (1082) y TIMESTAMP (1114) como texto plano sin desfases de zona horaria
+types.setTypeParser(1082, (val) => val);
+  types.setTypeParser(1114, (val) => val);
 
-// Función auxiliar para comprobar si la conexión responde al iniciar el servidor
+  const pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  });
+
+  // Convierte placeholders '?' de estilo MySQL a '$1, $2...' de PostgreSQL
+  function adaptarSql(sql) {
+  let idx = 0;
+  let adaptado = sql.replace(/\?/g, () => `$${++idx}`);
+  // Convierte LIKE a ILIKE en búsquedas para que no distinga mayúsculas/minúsculas
+  adaptado = adaptado.replace(/\bLIKE\b/g, 'ILIKE');
+  return adaptado;
+}
+
+async function ejecutarConsulta(cliente, sql, params = []) {
+    const sqlAdaptado = adaptarSql(sql);
+    const res = await cliente.query(sqlAdaptado, params);
+    if (/^\s*(INSERT|UPDATE|DELETE)/i.test(sqlAdaptado)) {
+      return [{ affectedRows: res.rowCount, insertId: res.rows?.[0]?.id || null }];
+    }
+    return [res.rows];
+  }
+
+const pool = {
+  query: (sql, params) => ejecutarConsulta(pgPool, sql, params),
+  getConnection: async () => {
+    const client = await pgPool.connect();
+    return {
+      query: (sql, params) => ejecutarConsulta(client, sql, params),
+      beginTransaction: () => client.query('BEGIN'),
+      commit: () => client.query('COMMIT'),
+      rollback: () => client.query('ROLLBACK'),
+      release: () => client.release()
+    };
+  }
+};
+
 async function verificarConexion() {
-  const conexion = await pool.getConnection(); // Pide una conexión del pool
-  await conexion.ping();                       // Envía un ping de prueba a MySQL
-  conexion.release();                          // Libera la conexión de vuelta al pool
+  const client = await pgPool.connect();
+  await client.query('SELECT 1');
+  client.release();
 }
 
 module.exports = { pool, verificarConexion };
