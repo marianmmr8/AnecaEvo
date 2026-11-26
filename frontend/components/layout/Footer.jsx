@@ -32,7 +32,7 @@ export default function Footer() {
               <Phone size={16} /> +34 600 111 222 (WhatsApp)
             </li>
             <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Mail size={16} /> hola@anecaevo.com
+              <Mail size={16} /> <a href="mailto:marian.corporativo1@yahoo.com">marian.corporativo1@yahoo.com</a>
             </li>
             <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Clock size={16} /> Lun-Vie 9:30-20:00 · Sáb 10:00-14:00

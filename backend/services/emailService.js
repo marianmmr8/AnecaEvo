@@ -26,8 +26,11 @@ async function enviarEmail({ to, subject, text }) {
     return { enviado: true, canal: 'simulado' };
   }
 
+  const correoAdmin = process.env.ADMIN_EMAIL || 'marian.corporativo1@yahoo.com';
+
   await transporter.sendMail({
     from: `"Aneca Evo" <${process.env.SMTP_USER}>`,
+    replyTo: correoAdmin,
     to,
     subject,
     text
